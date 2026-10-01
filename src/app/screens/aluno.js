@@ -5,21 +5,29 @@ import {
   View, 
   TouchableOpacity, 
   ScrollView, 
-  ActivityIndicator,
-  FlatList 
+  ActivityIndicator 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../supabase'; // Ajuste o caminho até ao seu ficheiro supabase.js
+import { supabase } from '../../supabase'; // Ajuste o caminho até o seu ficheiro supabase.js
+
+// Converte a string "YYYY-MM-DD" do banco para "DD/MM/AAAA"
+const formatarDataBR = (dataString) => {
+  if (!dataString) return '';
+  const apenasData = dataString.split('T')[0];
+  const partes = apenasData.split('-');
+  if (partes.length !== 3) return dataString;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+};
 
 export default function AlunoScreen() {
   const router = useRouter();
   const [licoes, setLicoes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Procura as lições na base de dados assim que a tela abre
-  
+  // Busca as lições na base de dados assim que a tela abre
   useEffect(() => {
     fetchLicoes();
   }, []);
@@ -65,7 +73,8 @@ export default function AlunoScreen() {
               <View key={item.id} style={styles.cardInfo}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.badgeClasse}>{item.classe}</Text>
-                  <Text style={styles.cardData}>📅 {item.data}</Text>
+                  {/* Exibição da data formatada no padrão DD/MM/AAAA */}
+                  <Text style={styles.cardData}>📅 {formatarDataBR(item.data)}</Text>
                 </View>
                 <Text style={styles.cardTitulo}>{item.titulo}</Text>
                 <Text style={styles.cardSub}>👨‍🏫 Professor: {item.professor}</Text>
@@ -110,6 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
+    overflow: 'hidden',
   },
   cardData: { fontSize: 12, color: '#38bdf8', fontWeight: 'bold' },
   cardTitulo: { fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 4 },
