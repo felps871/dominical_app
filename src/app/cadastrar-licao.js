@@ -176,7 +176,7 @@ export default function CadastrarLicao() {
         </View>
 
         {/* Seleção de Data da Lição */}
-        <Text style={styles.label}>Data da Lição (DD/MM/AAAA):</Text>
+        <Text style={styles.label}>Data da Lição:</Text>
         <TouchableOpacity 
           style={styles.datePickerButton} 
           onPress={() => setShowPickerCadastro(true)}
@@ -206,7 +206,7 @@ export default function CadastrarLicao() {
           placeholderTextColor="#94A3B8" 
         />
 
-        <Text style={styles.label}>Nome do Professor / Pregador:</Text>
+        <Text style={styles.label}>Nome do Professor:</Text>
         <TextInput 
           style={styles.input} 
           value={professor} 
@@ -229,16 +229,17 @@ export default function CadastrarLicao() {
         </TouchableOpacity>
 
         {/* SEÇÃO DE EXCLUSÃO DE LIÇÕES ANTIGAS */}
+
         <View style={styles.dangerZoneContainer}>
           <View style={styles.dangerZoneHeader}>
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
             <Text style={styles.dangerZoneTitle}>Gerenciar / Limpar Lições Passadas</Text>
           </View>
           <Text style={styles.dangerZoneSubtext}>
-            Remova do banco de dados as lições antigas que já foram ministradas.
+            Remova as lições antigas que já foram ministradas.
           </Text>
 
-          <Text style={styles.label}>Excluir lições anteriores a (DD/MM/AAAA):</Text>
+          <Text style={styles.label}>Excluir lições anteriores:</Text>
           <TouchableOpacity 
             style={styles.datePickerButton} 
             onPress={() => setShowPickerCorte(true)}

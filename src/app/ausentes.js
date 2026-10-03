@@ -5,8 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AusentesScreen() {
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>⚠️ Alunos Ausentes</Text>
-      <Text style={styles.sub}>Controle e acompanhamento de faltas.</Text>
+      <Text style={styles.title}>⚠️🛠🔨EM CONSTRUÇÃO</Text>
+      <Text style={styles.sub}>.</Text>
     </SafeAreaView>
   );
 }

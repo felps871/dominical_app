@@ -1,39 +1,73 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../context/ThemeContext';
 
-export default function ProfessorScreen() {
-  const router = useRouter();
+export default function RelatoriosScreen() {
+  const { theme, isDarkMode } = useTheme();
 
   return (
-    <LinearGradient colors={['#0f172a', '#1e3a8a']} style={styles.background}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <Text style={styles.h1}>Painel do Professor</Text>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' },
+      ]}
+    >
+      <StatusBar barStyle={theme.statusBar} />
 
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitulo}>📚 Turma: Dev. de Sistemas</Text>
-            <Text style={styles.cardSub}>Alunos Matriculados: 30</Text>
-          </View>
+      <View style={styles.content}>
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: isDarkMode
+                ? 'rgba(245, 158, 11, 0.15)'
+                : '#FEF3C7',
+            },
+          ]}
+        >
+          <Ionicons name="construct-outline" size={48} color="#D97706" />
+        </View>
 
-          <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-            <Text style={styles.buttonText}>Voltar / Sair</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+        <Text style={[styles.title, { color: theme.text }]}>
+          EM CONSTRUÇÃO
+        </Text>
+
+        <Text style={[styles.sub, { color: theme.subtext }]}>
+          Esta funcionalidade estará disponível em breve! 🚀
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  background: { flex: 1 },
-  scrollContainer: { flexGrow: 1, alignItems: 'center', padding: 20 },
-  h1: { fontSize: 30, fontWeight: 'bold', color: 'white', marginBottom: 10 },
-  cardInfo: { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 12, padding: 16, marginVertical: 8, width: '90%' },
-  cardTitulo: { fontSize: 18, fontWeight: 'bold', color: 'white' },
-  cardSub: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
-  button: { backgroundColor: '#2563eb', borderRadius: 12, padding: 12, marginTop: 20, width: '80%', alignItems: 'center' },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  sub: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
 });

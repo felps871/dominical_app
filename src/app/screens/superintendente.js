@@ -10,10 +10,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTheme } from '../../context/ThemeContext'; // Ajuste o caminho até o seu ThemeContext caso necessário
 
 export default function Home() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+
   const nomeUsuario = params.userName || 'Superintendente';
 
   const getSaudacao = () => {
@@ -24,25 +27,51 @@ export default function Home() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor="transparent" translucent />
 
-      {/* Header com Boas-Vindas */}
-      <View style={styles.header}>
+      {/* Header com Boas-Vindas e Botão de Alternar Tema */}
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
         <View>
           <Text style={styles.headerSubtitle}>
             {getSaudacao()}, {nomeUsuario}!
           </Text>
           <Text style={styles.headerTitle}>Gestão EBD 📖</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn}>
-          <Ionicons name="person-circle-outline" size={32} color="#FFF" />
-        </TouchableOpacity>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[
+              styles.themeButton,
+              { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)' },
+            ]}
+          >
+            <Ionicons
+              name={isDarkMode ? 'sunny' : 'moon'}
+              size={20}
+              color={isDarkMode ? '#F59E0B' : '#6366F1'}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.profileBtn}>
+            <Ionicons name="person-circle-outline" size={32} color="#FFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Banner de Lançamento do Domingo */}
-        <View style={styles.mainCard}>
+        <View
+          style={[
+            styles.mainCard,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#0F172A',
+              borderColor: theme.border,
+              borderWidth: isDarkMode ? 0 : 1,
+            },
+          ]}
+        >
           <View style={styles.mainCardBadge}>
             <Text style={styles.mainCardBadgeText}>HOJE</Text>
           </View>
@@ -59,71 +88,104 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Painel da EBD</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Painel da EBD</Text>
 
         {/* Grelha de Módulos EBD */}
         <View style={styles.gridContainer}>
-
-          {/* Módulo ADICIONADO: Cadastrar Lição */}
-          <TouchableOpacity 
-            style={styles.gridCard}
+          {/* Módulo: Cadastrar Lição */}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
             onPress={() => router.push('/cadastrar-licao')}
           >
             <View style={[styles.iconCircle, { backgroundColor: '#F3E8FF' }]}>
               <Ionicons name="book-outline" size={24} color="#7C3AED" />
             </View>
-            <Text style={styles.gridTitle}>Cadastrar Lição</Text>
-            <Text style={styles.gridSub}>Agenda e professores</Text>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Cadastrar Lição</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Agenda e professores</Text>
           </TouchableOpacity>
 
           {/* Módulo: Assiduidade / Ranking */}
-          <TouchableOpacity 
-            style={styles.gridCard}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
             onPress={() => router.push('/assiduidade')}
           >
             <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="trophy-outline" size={24} color="#D97706" />
             </View>
-            <Text style={styles.gridTitle}>Assiduidade</Text>
-            <Text style={styles.gridSub}>Ranking sem faltas</Text>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Assiduidade</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Ranking sem faltas</Text>
           </TouchableOpacity>
 
           {/* Módulo: Classes */}
-          <TouchableOpacity 
-            style={styles.gridCard}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
             onPress={() => router.push('/classes')}
           >
             <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
               <Ionicons name="school-outline" size={24} color="#2563EB" />
             </View>
-            <Text style={styles.gridTitle}>Classes</Text>
-            <Text style={styles.gridSub}>Gestão de turmas</Text>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Classes</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Gestão de turmas</Text>
           </TouchableOpacity>
 
           {/* Módulo: Alunos Ausentes */}
-          <TouchableOpacity 
-            style={styles.gridCard}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
             onPress={() => router.push('/ausentes')}
           >
             <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
               <Ionicons name="alert-circle-outline" size={24} color="#DC2626" />
             </View>
-            <Text style={styles.gridTitle}>Ausentes</Text>
-            <Text style={styles.gridSub}>Controle de visitas</Text>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Ausentes</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Controle de visitas</Text>
           </TouchableOpacity>
 
           {/* Módulo: Relatórios */}
-          <TouchableOpacity 
-            style={styles.gridCard}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
             onPress={() => router.push('/relatorios')}
           >
             <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
               <Ionicons name="document-text-outline" size={24} color="#16A34A" />
             </View>
-            <Text style={styles.gridTitle}>Relatórios</Text>
-            <Text style={styles.gridSub}>Emissão de dados</Text>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Relatórios</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Emissão de dados</Text>
           </TouchableOpacity>
-
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -131,24 +193,37 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1 },
   header: {
-    backgroundColor: '#0F172A',
     padding: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between', // Corrigido de 'justify' para 'justifyContent'
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerSubtitle: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
   headerTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeButton: {
+    padding: 8,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileBtn: { padding: 4 },
   content: { padding: 16 },
   mainCard: {
-    backgroundColor: '#1E293B',
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
     elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   mainCardBadge: {
     backgroundColor: '#16A34A',
@@ -165,34 +240,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // Corrigido de 'justify' para 'justifyContent'
+    justifyContent: 'center',
     padding: 12,
     borderRadius: 10,
   },
   primaryBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 14 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between', // Corrigido de 'justify' para 'justifyContent'
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   gridCard: {
-    backgroundColor: '#FFF',
     width: '48%',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    elevation: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   iconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center', // Corrigido de 'justify' para 'justifyContent'
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  gridTitle: { fontSize: 14, fontWeight: 'bold', color: '#0F172A' },
-  gridSub: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  gridTitle: { fontSize: 14, fontWeight: 'bold' },
+  gridSub: { fontSize: 11, marginTop: 2 },
 });
