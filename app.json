@@ -1,23 +1,24 @@
 {
   "expo": {
-    "name": "EBDTesouraria",
-    "slug": "EBDTesouraria",
+    "name": "Dominical App",
+    "slug": "dominical-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "ebdtesouraria",
+    "icon": "./assets/images/logo_App.png",
+    "scheme": "dominicalapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/logo_App.png"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/logo_App.png",
+        "backgroundImage": "./assets/images/logo_tela.png",
+        "monochromeImage": "./assets/images/logo_tela.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.felps_452.dominicalapp"
     },
     "web": {
       "output": "static",
@@ -37,7 +38,13 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f74e980c-dbd4-4919-b253-523e97f5c07f"
+      }
     }
   }
 }

@@ -9,16 +9,19 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-// Importa o cliente do Supabase
+// Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
+import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme o seu projeto
 
 function ClassesScreen() {
   const router = useRouter();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const classesEBD = ['Jovens', 'Adultos', 'Juniores', 'Crianças'];
   const [classeSelecionada, setClasseSelecionada] = useState('Jovens');
@@ -145,13 +148,32 @@ function ClassesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC') }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+
       {/* Cabeçalho */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          <Ionicons name="arrow-back" size={24} color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} />
         </TouchableOpacity>
-        <Text style={styles.title}>Gestão de Classes</Text>
+        <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+          Gestão de Classes
+        </Text>
+
+        {/* Botão de Alternância de Tema */}
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.themeBtn,
+            { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0', borderColor: theme.border || '#CBD5E1' }
+          ]}
+        >
+          <Ionicons
+            name={isDarkMode ? 'sunny' : 'moon'}
+            size={20}
+            color={isDarkMode ? '#F59E0B' : '#6366F1'}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Abas das Classes */}
@@ -161,10 +183,18 @@ function ClassesScreen() {
           return (
             <TouchableOpacity
               key={classe}
-              style={[styles.tab, ativa && styles.tabAtiva]}
+              style={[
+                styles.tab,
+                { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' },
+                ativa && styles.tabAtiva
+              ]}
               onPress={() => setClasseSelecionada(classe)}
             >
-              <Text style={[styles.tabText, ativa && styles.tabTextAtivo]}>
+              <Text style={[
+                styles.tabText,
+                { color: isDarkMode ? '#94A3B8' : '#64748B' },
+                ativa && styles.tabTextAtivo
+              ]}>
                 {classe}
               </Text>
             </TouchableOpacity>
@@ -174,7 +204,7 @@ function ClassesScreen() {
 
       {/* Seção da Lista */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.subTitle}>
+        <Text style={[styles.subTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
           Alunos de <Text style={{ color: '#2563EB' }}>{classeSelecionada}</Text>
         </Text>
         <TouchableOpacity style={styles.addBtn} onPress={handleAbrirModalNovo}>
@@ -193,21 +223,32 @@ function ClassesScreen() {
           contentContainerStyle={{ paddingBottom: 20 }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={48} color="#94A3B8" />
-              <Text style={styles.emptyText}>Nenhum aluno cadastrado nesta classe.</Text>
+              <Ionicons name="people-outline" size={48} color={isDarkMode ? '#475569' : '#94A3B8'} />
+              <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+                Nenhum aluno cadastrado nesta classe.
+              </Text>
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.alunoCard}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
+            <View style={[
+              styles.alunoCard,
+              {
+                backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF'),
+                borderColor: theme.border || (isDarkMode ? '#334155' : 'transparent'),
+                borderWidth: isDarkMode ? 1 : 0
+              }
+            ]}>
+              <View style={[styles.avatar, { backgroundColor: isDarkMode ? '#1E3A8A' : '#DBEAFE' }]}>
+                <Text style={[styles.avatarText, { color: isDarkMode ? '#60A5FA' : '#2563EB' }]}>
                   {item.nome ? item.nome.charAt(0).toUpperCase() : '?'}
                 </Text>
               </View>
 
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.alunoNome}>{item.nome}</Text>
-                <Text style={styles.alunoDetalhe}>
+                <Text style={[styles.alunoNome, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+                  {item.nome}
+                </Text>
+                <Text style={[styles.alunoDetalhe, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
                   {item.idade !== null && item.idade !== undefined
                     ? `Idade: ${item.idade} anos`
                     : 'Idade: Não informada'}{' '}
@@ -221,7 +262,7 @@ function ClassesScreen() {
                   onPress={() => handleAbrirModalEditar(item)}
                   style={styles.iconBtn}
                 >
-                  <Ionicons name="pencil-outline" size={20} color="#2563EB" />
+                  <Ionicons name="pencil-outline" size={20} color={isDarkMode ? '#60A5FA' : '#2563EB'} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -239,42 +280,72 @@ function ClassesScreen() {
       {/* Modal / Formulário */}
       <Modal visible={modalVisivel} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
+          <View style={[
+            styles.modalCard,
+            { backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF') }
+          ]}>
+            <Text style={[styles.modalTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
               {alunoEditandoId ? 'Editar Aluno' : 'Novo Aluno'}
             </Text>
 
             <TextInput
               placeholder="Nome completo do aluno"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
               value={novoNome}
               onChangeText={setNovoNome}
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                  borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+                  backgroundColor: isDarkMode ? '#0F172A' : '#FFF'
+                }
+              ]}
             />
 
             <TextInput
               placeholder="Idade (opcional)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
               keyboardType="numeric"
               value={novaIdade}
               onChangeText={setNovaIdade}
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                  borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+                  backgroundColor: isDarkMode ? '#0F172A' : '#FFF'
+                }
+              ]}
             />
 
             <TextInput
               placeholder="Classe (ex: Jovens, Adultos...)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
               value={novaClasse}
               onChangeText={setNovaClasse}
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                  borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+                  backgroundColor: isDarkMode ? '#0F172A' : '#FFF'
+                }
+              ]}
             />
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
+                style={[
+                  styles.modalBtn,
+                  styles.cancelBtn,
+                  { backgroundColor: isDarkMode ? '#334155' : '#F1F5F9' }
+                ]}
                 onPress={() => setModalVisivel(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#CBD5E1' : '#64748B' }]}>
+                  Cancelar
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -297,36 +368,36 @@ function ClassesScreen() {
 export default ClassesScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', paddingHorizontal: 16 },
+  container: { flex: 1, paddingHorizontal: 16 },
   header: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
   backBtn: { paddingRight: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#0F172A' },
+  title: { fontSize: 22, fontWeight: 'bold', flex: 1 },
+  themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   tabsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  tab: { flex: 1, paddingVertical: 10, backgroundColor: '#E2E8F0', borderRadius: 8, alignItems: 'center', marginHorizontal: 2 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginHorizontal: 2 },
   tabAtiva: { backgroundColor: '#2563EB' },
-  tabText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  tabText: { fontSize: 13, fontWeight: '600' },
   tabTextAtivo: { color: '#FFF' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  subTitle: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
+  subTitle: { fontSize: 16, fontWeight: 'bold' },
   addBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6, fontSize: 13 },
-  alunoCard: { backgroundColor: '#FFF', padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 10, elevation: 1 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#2563EB', fontWeight: 'bold', fontSize: 16 },
-  alunoNome: { fontSize: 15, fontWeight: 'bold', color: '#0F172A' },
-  alunoDetalhe: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  alunoCard: { padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 10, elevation: 1 },
+  avatar: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontWeight: 'bold', fontSize: 16 },
+  alunoNome: { fontSize: 15, fontWeight: 'bold' },
+  alunoDetalhe: { fontSize: 12, marginTop: 2 },
   actionButtons: { flexDirection: 'row', alignItems: 'center' },
   iconBtn: { padding: 6, marginLeft: 4 },
   emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { color: '#94A3B8', marginTop: 12, fontSize: 14 },
+  emptyText: { marginTop: 12, fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#0F172A', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 14, color: '#0F172A' },
+  modalCard: { borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  input: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 14 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
   modalBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, marginLeft: 8 },
-  cancelBtn: { backgroundColor: '#F1F5F9' },
-  cancelBtnText: { color: '#64748B', fontWeight: 'bold' },
+  cancelBtnText: { fontWeight: 'bold' },
   saveBtn: { backgroundColor: '#2563EB' },
   saveBtnText: { color: '#FFF', fontWeight: 'bold' },
 });

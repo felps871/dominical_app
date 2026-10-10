@@ -43,7 +43,7 @@ export default function Home() {
 
               {/* LOGÓTIPO */}
               <Image
-                source={require('../../assets/images/logo_app.png')}
+                source={require('../../assets/images/logo_tela.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
