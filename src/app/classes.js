@@ -202,10 +202,11 @@ function ClassesScreen() {
         })}
       </View>
 
-      {/* Seção da Lista */}
+      {/* Seção da Lista com a Quantidade de Alunos */}
       <View style={styles.sectionHeader}>
         <Text style={[styles.subTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-          Alunos de <Text style={{ color: '#2563EB' }}>{classeSelecionada}</Text>
+          Alunos de <Text style={{ color: '#2563EB' }}>{classeSelecionada}</Text>{' '}
+          <Text style={styles.contadorBadge}>({alunos.length})</Text>
         </Text>
         <TouchableOpacity style={styles.addBtn} onPress={handleAbrirModalNovo}>
           <Ionicons name="person-add-outline" size={18} color="#FFF" />
@@ -380,6 +381,7 @@ const styles = StyleSheet.create({
   tabTextAtivo: { color: '#FFF' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   subTitle: { fontSize: 16, fontWeight: 'bold' },
+  contadorBadge: { color: '#2563EB', fontWeight: 'bold' },
   addBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6, fontSize: 13 },
   alunoCard: { padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 10, elevation: 1 },
