@@ -92,6 +92,25 @@ export default function Home() {
 
         {/* Grelha de Módulos EBD */}
         <View style={styles.gridContainer}>
+          {/* Módulo: Escala de Professores (Superintendente) */}
+          <TouchableOpacity
+            style={[
+              styles.gridCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
+                borderColor: theme.border,
+                borderWidth: isDarkMode ? 0 : 1,
+              },
+            ]}
+            onPress={() => router.push('/escala-professores')}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: '#E0E7FF' }]}>
+              <Ionicons name="calendar-outline" size={24} color="#4F46E5" />
+            </View>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Escala Trimestral</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Gerar rodízio automático</Text>
+          </TouchableOpacity>
+
           {/* Módulo: Cadastrar Lição */}
           <TouchableOpacity
             style={[
