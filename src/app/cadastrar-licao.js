@@ -8,16 +8,22 @@ import {
   Alert, 
   ScrollView,
   ActivityIndicator,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+
+// Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
+import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme seu projeto
 
 export default function CadastrarLicao() {
   const router = useRouter();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+
   const [classe, setClasse] = useState('Jovens');
   
   // Estados para Data do Cadastro
@@ -50,7 +56,7 @@ export default function CadastrarLicao() {
     return `${ano}-${mes}-${dia}`;
   };
 
-  // Handlers para o DateTimePicker de Cadastro (Sem usar onChange obsoleto)
+  // Handlers para o DateTimePicker de Cadastro
   const handleValueChangeCadastro = (event, selectedDate) => {
     if (selectedDate) {
       setDataLicao(selectedDate);
@@ -148,27 +154,70 @@ export default function CadastrarLicao() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[
+      styles.container,
+      { backgroundColor: theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC') }
+    ]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+
+      {/* Cabeçalho */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons 
+            name="arrow-back" 
+            size={24} 
+            color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} 
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cadastrar Lição</Text>
-        <View style={{ width: 24 }} />
+        
+        <Text style={[
+          styles.headerTitle, 
+          { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }
+        ]}>
+          Cadastrar Lição
+        </Text>
+
+        {/* Botão de Alternância de Tema */}
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.themeBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]}
+        >
+          <Ionicons
+            name={isDarkMode ? 'sunny' : 'moon'}
+            size={20}
+            color={isDarkMode ? '#F59E0B' : '#6366F1'}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
 
         {/* Seleção de Turma */}
-        <Text style={styles.label}>Selecione a Classe:</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+          Selecione a Classe:
+        </Text>
         <View style={styles.botoesClasse}>
           {['Jovens', 'Adultos', 'Juniores', 'Crianças'].map((item) => (
             <TouchableOpacity 
               key={item} 
-              style={[styles.btnClasse, classe === item && styles.btnAtivo]}
+              style={[
+                styles.btnClasse,
+                { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' },
+                classe === item && styles.btnAtivo
+              ]}
               onPress={() => setClasse(item)}
             >
-              <Text style={[styles.btnTexto, classe === item && styles.btnTextoAtivo]}>
+              <Text style={[
+                styles.btnTexto, 
+                { color: isDarkMode ? '#94A3B8' : '#64748B' },
+                classe === item && styles.btnTextoAtivo
+              ]}>
                 {item}
               </Text>
             </TouchableOpacity>
@@ -176,13 +225,24 @@ export default function CadastrarLicao() {
         </View>
 
         {/* Seleção de Data da Lição */}
-        <Text style={styles.label}>Data da Lição:</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+          Data da Lição:
+        </Text>
         <TouchableOpacity 
-          style={styles.datePickerButton} 
+          style={[
+            styles.datePickerButton,
+            { 
+              backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]} 
           onPress={() => setShowPickerCadastro(true)}
         >
-          <Ionicons name="calendar-outline" size={20} color="#38BDF8" />
-          <Text style={styles.datePickerButtonText}>
+          <Ionicons name="calendar-outline" size={20} color={isDarkMode ? '#38BDF8' : '#0284C7'} />
+          <Text style={[
+            styles.datePickerButtonText,
+            { color: theme.text || (isDarkMode ? '#FFFFFF' : '#0F172A') }
+          ]}>
             {formatarDataParaExibicao(dataLicao)}
           </Text>
         </TouchableOpacity>
@@ -197,22 +257,40 @@ export default function CadastrarLicao() {
           />
         )}
 
-        <Text style={styles.label}>Título da Lição:</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+          Título da Lição:
+        </Text>
         <TextInput 
-          style={styles.input} 
+          style={[
+            styles.input,
+            { 
+              backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+              color: theme.text || (isDarkMode ? '#FFFFFF' : '#0F172A'),
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1'),
+            }
+          ]} 
           value={titulo} 
           onChangeText={setTitulo} 
           placeholder="Ex: O Poder da Oração" 
-          placeholderTextColor="#94A3B8" 
+          placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'} 
         />
 
-        <Text style={styles.label}>Nome do Professor:</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+          Nome do Professor:
+        </Text>
         <TextInput 
-          style={styles.input} 
+          style={[
+            styles.input,
+            { 
+              backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+              color: theme.text || (isDarkMode ? '#FFFFFF' : '#0F172A'),
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1'),
+            }
+          ]} 
           value={professor} 
           onChangeText={setProfessor} 
           placeholder="Ex: Prof. João" 
-          placeholderTextColor="#94A3B8" 
+          placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'} 
         />
 
         {/* Botão Salvar */}
@@ -230,22 +308,39 @@ export default function CadastrarLicao() {
 
         {/* SEÇÃO DE EXCLUSÃO DE LIÇÕES ANTIGAS */}
 
-        <View style={styles.dangerZoneContainer}>
+        <View style={[
+          styles.dangerZoneContainer,
+          {
+            backgroundColor: isDarkMode ? '#1E1E2E' : '#FEF2F2',
+            borderColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+          }
+        ]}>
           <View style={styles.dangerZoneHeader}>
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
             <Text style={styles.dangerZoneTitle}>Gerenciar / Limpar Lições Passadas</Text>
           </View>
-          <Text style={styles.dangerZoneSubtext}>
+          <Text style={[styles.dangerZoneSubtext, { color: isDarkMode ? '#94A3B8' : '#7F1D1D' }]}>
             Remova as lições antigas que já foram ministradas.
           </Text>
 
-          <Text style={styles.label}>Excluir lições anteriores:</Text>
+          <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569', marginTop: 10 }]}>
+            Excluir lições anteriores:
+          </Text>
           <TouchableOpacity 
-            style={styles.datePickerButton} 
+            style={[
+              styles.datePickerButton,
+              { 
+                backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+              }
+            ]} 
             onPress={() => setShowPickerCorte(true)}
           >
             <Ionicons name="calendar-outline" size={20} color="#EF4444" />
-            <Text style={styles.datePickerButtonText}>
+            <Text style={[
+              styles.datePickerButtonText,
+              { color: theme.text || (isDarkMode ? '#FFFFFF' : '#0F172A') }
+            ]}>
               {formatarDataParaExibicao(dataCorte)}
             </Text>
           </TouchableOpacity>
@@ -282,41 +377,50 @@ export default function CadastrarLicao() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  headerTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  container: { flex: 1 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16, 
+    paddingVertical: 12 
+  },
+  backBtn: { paddingRight: 8 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', flex: 1 },
+  themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20 },
-  label: { color: '#CBD5E1', fontSize: 14, marginTop: 15, marginBottom: 6, fontWeight: '600' },
-  input: { backgroundColor: '#1E293B', color: '#FFF', padding: 12, borderRadius: 8, fontSize: 16 },
+  label: { fontSize: 14, marginTop: 15, marginBottom: 6, fontWeight: '600' },
+  input: { 
+    padding: 12, 
+    borderRadius: 8, 
+    fontSize: 16, 
+    borderWidth: 1 
+  },
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1E293B',
     padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
   },
-  datePickerButtonText: { color: '#FFF', fontSize: 16, fontWeight: '500' },
+  datePickerButtonText: { fontSize: 16, fontWeight: '500' },
   botoesClasse: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 5 },
-  btnClasse: { backgroundColor: '#1E293B', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  btnClasse: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   btnAtivo: { backgroundColor: '#2563EB' },
-  btnTexto: { color: '#94A3B8', fontWeight: 'bold' },
+  btnTexto: { fontWeight: 'bold' },
   btnTextoAtivo: { color: '#FFF' },
   btnSalvar: { backgroundColor: '#16A34A', padding: 16, borderRadius: 10, marginTop: 25, alignItems: 'center' },
   btnSalvarTexto: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   dangerZoneContainer: {
     marginTop: 35,
     padding: 16,
-    backgroundColor: '#1E1E2E',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   dangerZoneHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   dangerZoneTitle: { color: '#EF4444', fontSize: 15, fontWeight: 'bold' },
-  dangerZoneSubtext: { color: '#94A3B8', fontSize: 12, lineHeight: 16 },
+  dangerZoneSubtext: { fontSize: 12, lineHeight: 16 },
   btnExcluir: { backgroundColor: '#DC2626', padding: 14, borderRadius: 8, marginTop: 15, alignItems: 'center' },
   btnExcluirContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   btnExcluirTexto: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },

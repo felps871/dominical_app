@@ -7,11 +7,20 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+// Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
+import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme seu projeto
 
 export default function SuperintendenteScreen() {
+  const router = useRouter();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+
   const [relatorioLicoes, setRelatorioLicoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,7 +107,6 @@ export default function SuperintendenteScreen() {
 
       // 4. Transformar o Mapa em Lista Ordenada
       const listaLicoes = Object.values(licoesMap).map((licao) => {
-        // Soma as Bíblias e Revistas de todas as turmas que lançaram aula na data
         const qtdBiblias = Object.values(licao.materiaisPorTurma).reduce(
           (acc, curr) => acc + curr.biblias,
           0
@@ -170,50 +178,113 @@ export default function SuperintendenteScreen() {
   // Cabeçalho superior com o resumo dos números gerais
   const renderHeaderComponent = () => (
     <View style={styles.dashboardContainer}>
-      <Text style={styles.sectionTitle}>Visão Geral das Lições</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text || (isDarkMode ? '#F1F5F9' : '#0F172A') }]}>
+        Visão Geral das Lições
+      </Text>
+      
       <View style={styles.gridKpi}>
-        <View style={[styles.cardKpi, styles.cardKpiDestaque]}>
-          <Text style={styles.labelKpi}>Média de Presentes / Aula</Text>
-          <Text style={styles.valorKpi}>
-            {kpisGerais.mediaPresenca}{' '}
-            <Text style={styles.subValorKpi}>/ {kpisGerais.totalMatriculados} alunos</Text>
+        {/* Card Destaque */}
+        <View style={[
+          styles.cardKpi,
+          styles.cardKpiDestaque,
+          {
+            backgroundColor: isDarkMode ? '#1E3A8A20' : '#EFF6FF',
+            borderColor: isDarkMode ? '#3B82F6' : '#93C5FD'
+          }
+        ]}>
+          <Text style={[styles.labelKpi, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+            Média de Presentes / Aula
           </Text>
-          <Text style={styles.badgeKpi}>
+          <Text style={[styles.valorKpi, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+            {kpisGerais.mediaPresenca}{' '}
+            <Text style={[styles.subValorKpi, { color: isDarkMode ? '#64748B' : '#64748B' }]}>
+              / {kpisGerais.totalMatriculados} alunos
+            </Text>
+          </Text>
+          <Text style={[styles.badgeKpi, { color: isDarkMode ? '#60A5FA' : '#2563EB' }]}>
             {kpisGerais.totalAulas} aula(s)/lição(ões) registrada(s)
           </Text>
         </View>
 
-        <View style={styles.cardKpi}>
-          <Text style={styles.labelKpi}>Total Bíblias</Text>
+        {/* Card Bíblias */}
+        <View style={[
+          styles.cardKpi,
+          {
+            backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+            borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0')
+          }
+        ]}>
+          <Text style={[styles.labelKpi, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Total Bíblias</Text>
           <Text style={[styles.valorKpi, { color: '#F59E0B' }]}>{kpisGerais.totalBiblias}</Text>
-          <Text style={styles.subTextKpi}>Acumulado total</Text>
+          <Text style={[styles.subTextKpi, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>Acumulado total</Text>
         </View>
 
-        <View style={styles.cardKpi}>
-          <Text style={styles.labelKpi}>Total Revistas</Text>
+        {/* Card Revistas */}
+        <View style={[
+          styles.cardKpi,
+          {
+            backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+            borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0')
+          }
+        ]}>
+          <Text style={[styles.labelKpi, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Total Revistas</Text>
           <Text style={[styles.valorKpi, { color: '#A855F7' }]}>{kpisGerais.totalRevistas}</Text>
-          <Text style={styles.subTextKpi}>Acumulado total</Text>
+          <Text style={[styles.subTextKpi, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>Acumulado total</Text>
         </View>
       </View>
 
-      <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>
+      <Text style={[
+        styles.sectionTitle,
+        {
+          marginTop: 16,
+          marginBottom: 8,
+          color: theme.text || (isDarkMode ? '#F1F5F9' : '#0F172A')
+        }
+      ]}>
         📅 Relatório Detalhado por Lição/Data
       </Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <SafeAreaView style={[
+      styles.container,
+      { backgroundColor: theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC') }
+    ]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       {/* Cabeçalho da Tela */}
       <View style={styles.header}>
-        <Text style={styles.title}>📊 Relatório de Lições</Text>
-        <Text style={styles.sub}>Acompanhamento por data de aula na EBD</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+            📊 Relatório de Lições
+          </Text>
+          <Text style={[styles.sub, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+            Acompanhamento por data de aula na EBD
+          </Text>
+        </View>
+
+        {/* Botão de Alternância de Tema */}
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.themeBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]}
+        >
+          <Ionicons
+            name={isDarkMode ? 'sunny' : 'moon'}
+            size={20}
+            color={isDarkMode ? '#F59E0B' : '#6366F1'}
+          />
+        </TouchableOpacity>
       </View>
 
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={relatorioLicoes}
@@ -223,17 +294,34 @@ export default function SuperintendenteScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#3B82F6"
-              colors={['#3B82F6']}
+              tintColor={isDarkMode ? '#60A5FA' : '#2563EB'}
+              colors={[isDarkMode ? '#60A5FA' : '#2563EB']}
             />
           }
           contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => (
-            <View style={styles.cardLicao}>
+            <View style={[
+              styles.cardLicao,
+              {
+                backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
+              }
+            ]}>
               {/* Data e % de Presença */}
-              <View style={styles.headerLicao}>
-                <View style={styles.badgeData}>
-                  <Text style={styles.textoData}>📅 Aula: {formatarData(item.data)}</Text>
+              <View style={[
+                styles.headerLicao,
+                { borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9' }
+              ]}>
+                <View style={[
+                  styles.badgeData,
+                  { backgroundColor: isDarkMode ? '#1E3A8A' : '#DBEAFE' }
+                ]}>
+                  <Text style={[
+                    styles.textoData,
+                    { color: isDarkMode ? '#93C5FD' : '#1E40AF' }
+                  ]}>
+                    📅 Aula: {formatarData(item.data)}
+                  </Text>
                 </View>
                 <Text style={styles.pctFrequencia}>{item.pctFrequencia}% Presença</Text>
               </View>
@@ -241,28 +329,36 @@ export default function SuperintendenteScreen() {
               {/* Estatísticas da Lição naquele domingo */}
               <View style={styles.detalhesLicaoGrid}>
                 <View style={styles.colunaMetrica}>
-                  <Text style={styles.labelMetrica}>Presentes</Text>
+                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Presentes
+                  </Text>
                   <Text style={[styles.valorMetrica, { color: '#22C55E' }]}>
                     {item.totalPresentes}
                   </Text>
                 </View>
 
                 <View style={styles.colunaMetrica}>
-                  <Text style={styles.labelMetrica}>Ausentes</Text>
+                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Ausentes
+                  </Text>
                   <Text style={[styles.valorMetrica, { color: '#EF4444' }]}>
                     {item.totalAusentes}
                   </Text>
                 </View>
 
                 <View style={styles.colunaMetrica}>
-                  <Text style={styles.labelMetrica}>Bíblias</Text>
+                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Bíblias
+                  </Text>
                   <Text style={[styles.valorMetrica, { color: '#F59E0B' }]}>
                     {item.qtdBiblias}
                   </Text>
                 </View>
 
                 <View style={styles.colunaMetrica}>
-                  <Text style={styles.labelMetrica}>Revistas</Text>
+                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Revistas
+                  </Text>
                   <Text style={[styles.valorMetrica, { color: '#A855F7' }]}>
                     {item.qtdRevistas}
                   </Text>
@@ -271,7 +367,9 @@ export default function SuperintendenteScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Nenhuma lição registrada até o momento.</Text>
+            <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+              Nenhuma lição registrada até o momento.
+            </Text>
           }
         />
       )}
@@ -280,39 +378,38 @@ export default function SuperintendenteScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: 10, backgroundColor: '#0F172A' },
-  header: { marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#F8FAFC' },
-  sub: { color: '#94A3B8', marginTop: 2, fontSize: 14 },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: 'bold' },
+  sub: { marginTop: 2, fontSize: 13 },
+  themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Estilos Dashboard KPI
   dashboardContainer: { marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#F1F5F9', marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   gridKpi: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   cardKpi: {
     width: '48%',
-    backgroundColor: '#1E293B',
     padding: 12,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    elevation: 1,
   },
-  cardKpiDestaque: { borderColor: '#3B82F6', backgroundColor: '#1E3A8A20', width: '100%' },
-  labelKpi: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
-  valorKpi: { fontSize: 22, fontWeight: 'bold', color: '#F8FAFC', marginVertical: 2 },
-  subValorKpi: { fontSize: 13, color: '#64748B', fontWeight: 'normal' },
-  badgeKpi: { fontSize: 11, fontWeight: 'bold', color: '#60A5FA', marginTop: 2 },
-  subTextKpi: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  cardKpiDestaque: { width: '100%' },
+  labelKpi: { fontSize: 12, fontWeight: '500' },
+  valorKpi: { fontSize: 22, fontWeight: 'bold', marginVertical: 2 },
+  subValorKpi: { fontSize: 13, fontWeight: 'normal' },
+  badgeKpi: { fontSize: 11, fontWeight: 'bold', marginTop: 2 },
+  subTextKpi: { fontSize: 11, marginTop: 2 },
 
   // Estilos Cards de Lições
   cardLicao: {
-    backgroundColor: '#1E293B',
     padding: 14,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    elevation: 1,
   },
   headerLicao: {
     flexDirection: 'row',
@@ -321,15 +418,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
   },
   badgeData: {
-    backgroundColor: '#1E3A8A',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  textoData: { color: '#93C5FD', fontWeight: 'bold', fontSize: 13 },
+  textoData: { fontWeight: 'bold', fontSize: 13 },
   pctFrequencia: { fontSize: 14, fontWeight: 'bold', color: '#22C55E' },
 
   detalhesLicaoGrid: {
@@ -341,8 +436,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  labelMetrica: { fontSize: 11, color: '#94A3B8', marginBottom: 2 },
+  labelMetrica: { fontSize: 11, marginBottom: 2 },
   valorMetrica: { fontSize: 16, fontWeight: 'bold' },
 
-  emptyText: { textAlign: 'center', color: '#64748B', marginTop: 30 },
+  emptyText: { textAlign: 'center', marginTop: 30 },
 });

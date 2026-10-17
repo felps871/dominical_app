@@ -99,7 +99,7 @@ function generateQuarterSchedule({ startDateInput, totalLessons = 13, teachersBy
 // --- COMPONENTE PRINCIPAL ---
 export default function EscalaProfessores() {
   const router = useRouter();
-  const { theme, isDarkMode } = useTheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
 
   // Referência para captura da imagem
   const tableRef = useRef(null);
@@ -136,7 +136,7 @@ export default function EscalaProfessores() {
     }
   };
 
-  // Exportar a Tabela em Formato JPG Moderno
+  // Exportar a Tabela em Formato JPG
   const handleExportJPG = async () => {
     if (!tableRef.current) return;
 
@@ -160,7 +160,7 @@ export default function EscalaProfessores() {
     }
   };
 
-  // Salvar no Banco de Dados (Publica oficialmente para os demais utilizadores)
+  // Salvar no Banco de Dados
   const handleSaveToSupabase = async () => {
     if (generatedSchedule.length === 0) {
       Alert.alert('Aviso', 'Gere uma escala primeiro.');
@@ -200,7 +200,9 @@ export default function EscalaProfessores() {
 
     lessonsRows.push(
       <View key={lNum} style={styles.imageTableRow}>
-        <Text style={styles.imageCellLesson}>{lNum} - {dateStr}</Text>
+        <Text style={styles.imageCellLesson}>
+          Lição {lNum} - {dateStr}
+        </Text>
         {classesList.map((c) => {
           const item = itemsForLesson.find((i) => i.classe === c);
           return (
@@ -214,52 +216,109 @@ export default function EscalaProfessores() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}>
-      <StatusBar barStyle={theme?.statusBar || 'default'} backgroundColor="transparent" translucent />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC') }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={[styles.header, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
+      {/* Cabeçalho */}
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
+          <Ionicons name="arrow-back" size={24} color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Escala Automática (Superintendência) 📅</Text>
+        <Text style={[styles.headerTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+          Escala Automática 📅
+        </Text>
+
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.themeBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1'),
+            },
+          ]}
+        >
+          <Ionicons
+            name={isDarkMode ? 'sunny' : 'moon'}
+            size={20}
+            color={isDarkMode ? '#F59E0B' : '#6366F1'}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Painel de Parâmetros */}
-        <View style={[styles.card, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#FFF' }]}>
-          <Text style={[styles.cardTitle, { color: isDarkMode ? '#FFF' : '#000' }]}>Parâmetros do Trimestre</Text>
+        {/* Painel de Parâmetros com Campos Ampliados */}
+        <View style={[
+          styles.card,
+          {
+            backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+            borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
+          }
+        ]}>
+          <Text style={[styles.cardTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+            Parâmetros do Trimestre
+          </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Data 1º Domingo (DD/MM/YYYY):</Text>
+            <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+              Data 1º Domingo (DD/MM/YYYY):
+            </Text>
             <TextInput
-              style={[styles.input, { color: isDarkMode ? '#FFF' : '#000' }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                  borderColor: isDarkMode ? '#475569' : '#CBD5E1',
+                  backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                },
+              ]}
               value={startDateInput}
               onChangeText={setStartDateInput}
               placeholder="04/10/2026"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
               keyboardType="numeric"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Nº de Lições:</Text>
+            <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>
+              Nº de Lições:
+            </Text>
             <TextInput
-              style={[styles.input, { color: isDarkMode ? '#FFF' : '#000' }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                  borderColor: isDarkMode ? '#475569' : '#CBD5E1',
+                  backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                },
+              ]}
               value={totalLessons}
               onChangeText={setTotalLessons}
               keyboardType="numeric"
             />
           </View>
 
-          <Text style={[styles.sectionSubtitle, { color: isDarkMode ? '#FFF' : '#000' }]}>Professores por Turma</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+            Professores por Turma (separados por vírgula)
+          </Text>
 
           {Object.keys(teachersByClass).map((classe) => (
             <View key={classe} style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>{classe}:</Text>
+              <Text style={[styles.label, { color: isDarkMode ? '#CBD5E1' : '#475569' }]}>{classe}:</Text>
               <TextInput
-                style={[styles.input, { color: isDarkMode ? '#FFF' : '#000' }]}
+                style={[
+                  styles.input,
+                  styles.inputArea,
+                  {
+                    color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A'),
+                    borderColor: isDarkMode ? '#475569' : '#CBD5E1',
+                    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                  },
+                ]}
                 value={teachersByClass[classe]}
                 onChangeText={(text) => setTeachersByClass((prev) => ({ ...prev, [classe]: text }))}
+                multiline
               />
             </View>
           ))}
@@ -270,17 +329,16 @@ export default function EscalaProfessores() {
           </TouchableOpacity>
         </View>
 
-        {/* Pré-visualização Privada do Superintendente (Capturável em JPG) */}
+        {/* Pré-visualização Privada */}
         {generatedSchedule.length > 0 && (
           <View style={styles.previewSection}>
-            <Text style={[styles.previewTitle, { color: isDarkMode ? '#FFF' : '#000' }]}>
+            <Text style={[styles.previewTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
               🔒 Pré-visualização Exclusiva (Superintendência)
             </Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={true}>
               <ViewShot ref={tableRef} options={{ format: 'jpg', quality: 0.95 }}>
                 <View style={styles.imageCardContainer}>
-                  {/* Cabeçalho da Imagem JPG */}
                   <View style={styles.imageHeader}>
                     <Text style={styles.imageHeaderTitle}>ESCALA DE PROFESSORES EBD</Text>
                     <Text style={styles.imageHeaderSub}>ESCOLA BÍBLICA DOMINICAL</Text>
@@ -291,7 +349,6 @@ export default function EscalaProfessores() {
                     </View>
                   </View>
 
-                  {/* Tabela de Dados */}
                   <View style={styles.imageTable}>
                     <View style={styles.imageTableHeader}>
                       <Text style={styles.imageCellHeaderLesson}>LIÇÃO / DATA</Text>
@@ -305,7 +362,6 @@ export default function EscalaProfessores() {
               </ViewShot>
             </ScrollView>
 
-            {/* Ações da Escala */}
             <View style={styles.actionsContainer}>
               <TouchableOpacity
                 style={[styles.exportBtn, exporting && { opacity: 0.7 }]}
@@ -346,27 +402,50 @@ export default function EscalaProfessores() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 16, flexDirection: 'row', alignItems: 'center' },
-  backBtn: { marginRight: 12 },
-  headerTitle: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16, 
+    paddingVertical: 14 
+  },
+  backBtn: { paddingRight: 8 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', flex: 1 },
+  themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16 },
-  card: { borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#334155', marginBottom: 20 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
-  sectionSubtitle: { fontSize: 14, fontWeight: 'bold', marginTop: 12, marginBottom: 8 },
-  inputGroup: { marginBottom: 10 },
-  label: { fontSize: 12, marginBottom: 4, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#475569', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13 },
-  generateBtn: { backgroundColor: '#6366F1', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, marginTop: 12 },
-  btnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 13 },
+  
+  // Card do Formulário
+  card: { borderRadius: 16, padding: 18, borderWidth: 1, marginBottom: 20, elevation: 1 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  sectionSubtitle: { fontSize: 15, fontWeight: 'bold', marginTop: 16, marginBottom: 12 },
+  
+  // AUMENTADO O TAMANHO DOS INPUTS E ESPAÇAMENTOS
+  inputGroup: { marginBottom: 14 },
+  label: { fontSize: 14, marginBottom: 6, fontWeight: '600' },
+  input: { 
+    borderWidth: 1, 
+    borderRadius: 10, 
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    fontSize: 15,
+    minHeight: 48,
+  },
+  inputArea: {
+    minHeight: 56,
+    textAlignVertical: 'center',
+  },
+  
+  generateBtn: { backgroundColor: '#6366F1', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10, marginTop: 16 },
+  btnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 14 },
   
   // Estilos da Pré-visualização
   previewSection: { marginTop: 10, marginBottom: 30 },
-  previewTitle: { fontSize: 15, fontWeight: 'bold', marginBottom: 12 },
-  actionsContainer: { gap: 10, marginTop: 16 },
-  exportBtn: { backgroundColor: '#D97706', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 8 },
-  saveBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 8 },
+  previewTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+  actionsContainer: { gap: 12, marginTop: 16 },
+  exportBtn: { backgroundColor: '#D97706', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10 },
+  saveBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10 },
 
-  // Estilos do Card Moderno Renderizado na Imagem JPG
+  // Estilos da Imagem JPG Exportada
   imageCardContainer: {
     backgroundColor: '#0F172A',
     padding: 20,
@@ -383,8 +462,8 @@ const styles = StyleSheet.create({
   imageTable: { borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#1E293B' },
   imageTableHeader: { flexDirection: 'row', backgroundColor: '#1E293B', paddingVertical: 10 },
   imageTableRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#1E293B', backgroundColor: '#0F172A', paddingVertical: 8 },
-  imageCellHeaderLesson: { width: 130, color: '#38BDF8', fontWeight: 'bold', fontSize: 11, textAlign: 'center' },
+  imageCellHeaderLesson: { width: 140, color: '#38BDF8', fontWeight: 'bold', fontSize: 11, textAlign: 'center' },
   imageCellHeaderTeacher: { width: 100, color: '#38BDF8', fontWeight: 'bold', fontSize: 11, textAlign: 'center' },
-  imageCellLesson: { width: 130, color: '#F8FAFC', fontSize: 11, textAlign: 'center', fontWeight: '600' },
+  imageCellLesson: { width: 140, color: '#F8FAFC', fontSize: 11, textAlign: 'center', fontWeight: '600' },
   imageCellTeacher: { width: 100, color: '#CBD5E1', fontSize: 11, textAlign: 'center' },
 });

@@ -7,11 +7,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+
+// Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
+import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme o seu projeto
 
 export default function AssiduidadeScreen() {
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,50 +97,109 @@ export default function AssiduidadeScreen() {
 
     if (posicao === 1) {
       return (
-        <View style={[styles.badgePosicao, { backgroundColor: '#451A03', borderColor: '#F59E0B' }]}>
+        <View style={[
+          styles.badgePosicao,
+          {
+            backgroundColor: isDarkMode ? '#451A03' : '#FEF3C7',
+            borderColor: '#F59E0B'
+          }
+        ]}>
           <Text style={{ fontSize: 16 }}>🥇</Text>
-          <Text style={[styles.textoPosicao, { color: '#FCD34D' }]}>1º Lugar</Text>
+          <Text style={[styles.textoPosicao, { color: isDarkMode ? '#FCD34D' : '#B45309' }]}>
+            1º Lugar
+          </Text>
         </View>
       );
     }
 
     if (posicao === 2) {
       return (
-        <View style={[styles.badgePosicao, { backgroundColor: '#1E293B', borderColor: '#94A3B8' }]}>
+        <View style={[
+          styles.badgePosicao,
+          {
+            backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+            borderColor: '#94A3B8'
+          }
+        ]}>
           <Text style={{ fontSize: 16 }}>🥈</Text>
-          <Text style={[styles.textoPosicao, { color: '#E2E8F0' }]}>2º Lugar</Text>
+          <Text style={[styles.textoPosicao, { color: isDarkMode ? '#E2E8F0' : '#475569' }]}>
+            2º Lugar
+          </Text>
         </View>
       );
     }
 
     if (posicao === 3) {
       return (
-        <View style={[styles.badgePosicao, { backgroundColor: '#431407', borderColor: '#EA580C' }]}>
+        <View style={[
+          styles.badgePosicao,
+          {
+            backgroundColor: isDarkMode ? '#431407' : '#FFEDD5',
+            borderColor: '#EA580C'
+          }
+        ]}>
           <Text style={{ fontSize: 16 }}>🥉</Text>
-          <Text style={[styles.textoPosicao, { color: '#FDBA74' }]}>3º Lugar</Text>
+          <Text style={[styles.textoPosicao, { color: isDarkMode ? '#FDBA74' : '#C2410C' }]}>
+            3º Lugar
+          </Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.badgePosicaoPadrao}>
-        <Text style={styles.textoPosicaoPadrao}>{posicao}º</Text>
+      <View style={[
+        styles.badgePosicaoPadrao,
+        { backgroundColor: isDarkMode ? '#334155' : '#E2E8F0' }
+      ]}>
+        <Text style={[
+          styles.textoPosicaoPadrao,
+          { color: isDarkMode ? '#94A3B8' : '#64748B' }
+        ]}>
+          {posicao}º
+        </Text>
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <SafeAreaView style={[
+      styles.container,
+      { backgroundColor: theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC') }
+    ]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <Text style={styles.title}>🏆 Ranking de Assiduidade</Text>
-        <Text style={styles.sub}>Classificação de presença dos alunos</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+            🏆 Ranking de Assiduidade
+          </Text>
+          <Text style={[styles.sub, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+            Classificação de presença dos alunos
+          </Text>
+        </View>
+
+        {/* Botão de Alternância de Tema */}
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.themeBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]}
+        >
+          <Ionicons
+            name={isDarkMode ? 'sunny' : 'moon'}
+            size={20}
+            color={isDarkMode ? '#F59E0B' : '#6366F1'}
+          />
+        </TouchableOpacity>
       </View>
 
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={ranking}
@@ -142,8 +208,8 @@ export default function AssiduidadeScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#3B82F6"
-              colors={['#3B82F6']}
+              tintColor={isDarkMode ? '#60A5FA' : '#2563EB'}
+              colors={[isDarkMode ? '#60A5FA' : '#2563EB']}
             />
           }
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -151,29 +217,41 @@ export default function AssiduidadeScreen() {
             <View
               style={[
                 styles.cardAluno,
-                index === 0 && styles.cardTop1,
-                index === 1 && styles.cardTop2,
-                index === 2 && styles.cardTop3,
+                {
+                  backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                  borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
+                },
+                index === 0 && (isDarkMode ? styles.cardTop1Dark : styles.cardTop1Light),
+                index === 1 && (isDarkMode ? styles.cardTop2Dark : styles.cardTop2Light),
+                index === 2 && (isDarkMode ? styles.cardTop3Dark : styles.cardTop3Light),
               ]}
             >
               {renderPosicaoBadge(index)}
 
               <View style={styles.infoAluno}>
-                <Text style={styles.nomeAluno}>{item.nome}</Text>
-                <Text style={styles.turmaAluno}>Turma: {item.classe || 'N/A'}</Text>
-                <Text style={styles.detalhesPresenca}>
+                <Text style={[styles.nomeAluno, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+                  {item.nome}
+                </Text>
+                <Text style={[styles.turmaAluno, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                  Turma: {item.classe || 'N/A'}
+                </Text>
+                <Text style={[styles.detalhesPresenca, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
                   {item.totalPresencas} presenças em {item.totalAulas} aulas
                 </Text>
               </View>
 
               <View style={styles.containerPercentagem}>
                 <Text style={styles.textoPercentagem}>{item.percentagem}%</Text>
-                <Text style={styles.subPercentagem}>Presença</Text>
+                <Text style={[styles.subPercentagem, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                  Presença
+                </Text>
               </View>
             </View>
           )}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Nenhum aluno registrado.</Text>
+            <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+              Nenhum aluno registrado.
+            </Text>
           }
         />
       )}
@@ -182,24 +260,31 @@ export default function AssiduidadeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#0F172A' },
-  header: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#F8FAFC' },
-  sub: { color: '#94A3B8', marginTop: 4, fontSize: 14 },
+  container: { flex: 1, padding: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: 'bold' },
+  sub: { marginTop: 4, fontSize: 13 },
+  themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
 
   cardAluno: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
     padding: 14,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    elevation: 1,
   },
-  cardTop1: { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#181E29' },
-  cardTop2: { borderColor: '#94A3B8', borderWidth: 1.5, backgroundColor: '#181E29' },
-  cardTop3: { borderColor: '#EA580C', borderWidth: 1.5, backgroundColor: '#181E29' },
+
+  // Destaques do Top 3 (Modo Escuro)
+  cardTop1Dark: { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#181E29' },
+  cardTop2Dark: { borderColor: '#94A3B8', borderWidth: 1.5, backgroundColor: '#181E29' },
+  cardTop3Dark: { borderColor: '#EA580C', borderWidth: 1.5, backgroundColor: '#181E29' },
+
+  // Destaques do Top 3 (Modo Claro)
+  cardTop1Light: { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#FFFBEB' },
+  cardTop2Light: { borderColor: '#94A3B8', borderWidth: 1.5, backgroundColor: '#F8FAFC' },
+  cardTop3Light: { borderColor: '#EA580C', borderWidth: 1.5, backgroundColor: '#FFF7ED' },
 
   badgePosicao: {
     flexDirection: 'row',
@@ -217,21 +302,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#334155',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  textoPosicaoPadrao: { fontWeight: 'bold', color: '#94A3B8', fontSize: 13 },
+  textoPosicaoPadrao: { fontWeight: 'bold', fontSize: 13 },
 
   infoAluno: { flex: 1 },
-  nomeAluno: { fontSize: 15, fontWeight: 'bold', color: '#F8FAFC' },
-  turmaAluno: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  detalhesPresenca: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  nomeAluno: { fontSize: 15, fontWeight: 'bold' },
+  turmaAluno: { fontSize: 12, marginTop: 2 },
+  detalhesPresenca: { fontSize: 11, marginTop: 2 },
 
   containerPercentagem: { alignItems: 'flex-end' },
   textoPercentagem: { fontSize: 18, fontWeight: 'bold', color: '#22C55E' },
-  subPercentagem: { fontSize: 10, color: '#94A3B8' },
+  subPercentagem: { fontSize: 10 },
 
-  emptyText: { textAlign: 'center', color: '#64748B', marginTop: 30 },
+  emptyText: { textAlign: 'center', marginTop: 30 },
 });

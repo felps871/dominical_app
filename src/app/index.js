@@ -41,12 +41,23 @@ export default function Home() {
           <ScrollView contentContainerStyle={styles.scrollContainer}>
             <View style={styles.containerCentro}>
 
-              {/* LOGÓTIPO */}
-              <Image
-                source={require('../../assets/images/logo_tela.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              {/* LOGÓTIPO COM CONTAINER DINÂMICO PARA EVITAR FONTE SUMINDO NO LIGHT MODE */}
+              <View
+                style={[
+                  styles.logoContainer,
+                  {
+                    backgroundColor: isDarkMode ? 'transparent' : '#0F172A',
+                    borderColor: isDarkMode ? 'transparent' : '#1E293B',
+                    borderWidth: isDarkMode ? 0 : 1,
+                  },
+                ]}
+              >
+                <Image
+                  source={require('../../assets/images/logo_tela.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
 
               <Text style={[styles.h1, { color: theme.text }]}>Dominical App</Text>
               <Text style={[styles.p, { color: theme.subtext }]}>Escolha o seu perfil</Text>
@@ -66,7 +77,14 @@ export default function Home() {
                   <View style={[styles.avatar, styles.professor]}>
                     <Text style={styles.avatarIcone}>👨‍🏫</Text>
                   </View>
-                  <Text style={[styles.perfilH2, { color: theme.text }]}>Professor</Text>
+                  <Text
+                    style={[styles.perfilH2, { color: theme.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    Professor
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -83,7 +101,14 @@ export default function Home() {
                   <View style={[styles.avatar, styles.superintendente]}>
                     <Text style={styles.avatarIcone}>👨‍💼</Text>
                   </View>
-                  <Text style={[styles.perfilH2, { color: theme.text }]}>Superintendente</Text>
+                  <Text
+                    style={[styles.perfilH2, { color: theme.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    Superintendente
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -100,7 +125,14 @@ export default function Home() {
                   <View style={[styles.avatar, styles.aluno]}>
                     <Text style={styles.avatarIcone}>🎓</Text>
                   </View>
-                  <Text style={[styles.perfilH2, { color: theme.text }]}>Aluno</Text>
+                  <Text
+                    style={[styles.perfilH2, { color: theme.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    Aluno
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -144,10 +176,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  logo: {
-    width: 300,
-    height: 120,
+  logoContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 16,
     marginBottom: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: 260,
+    height: 100,
   },
   h1: {
     fontSize: 32,
@@ -161,15 +200,16 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   perfis: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    flexDirection: 'column',
+    alignItems: 'center',
     gap: 20,
     marginTop: 20,
+    width: '100%',
   },
   perfil: {
-    width: 200,
-    padding: 20,
+    width: 220,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
     borderRadius: 20,
     alignItems: 'center',
     elevation: 5,
@@ -199,7 +239,9 @@ const styles = StyleSheet.create({
   },
   perfilH2: {
     marginTop: 15,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
   },
 });
