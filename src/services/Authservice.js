@@ -1,8 +1,8 @@
 import { supabase } from '../supabase'; 
 
+// 1. Função de Cadastro de Usuário
 export async function cadastrarUsuario({ nome, email, senha, tipoUsuario, classe }) {
   try {
-    // 1. Cadastra o usuário no Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password: senha,
@@ -20,7 +20,7 @@ export async function cadastrarUsuario({ nome, email, senha, tipoUsuario, classe
       return { status: 'erro', mensagem: 'Não foi possível criar o usuário.' };
     }
 
-    // 2. Insere os dados complementares na tabela personalizada 'users'
+    // Insere os dados complementares na tabela personalizada 'users'
     const { error: profileError } = await supabase.from('users').insert([
       {
         id: user.id, // ID gerado pelo Auth do Supabase
@@ -42,6 +42,48 @@ export async function cadastrarUsuario({ nome, email, senha, tipoUsuario, classe
     };
   } catch (error) {
     console.error('Erro inesperado no cadastro:', error);
+    return { status: 'erro', mensagem: 'Erro de conexão. Tente novamente.' };
+  }
+}
+
+// 2. Função de Autenticação/Login (Faltava esta no seu serviço)
+export async function autenticarUsuario({ email, senha }) {
+  try {
+    // Faz o login no Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: senha,
+    });
+
+    if (authError) {
+      return { status: 'erro', mensagem: 'E-mail ou senha incorretos.' };
+    }
+
+    const userId = authData.user.id;
+
+    // Busca os dados complementares na tabela personalizada 'users'
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      return { status: 'erro', mensagem: 'Perfil do usuário não encontrado na base de dados.' };
+    }
+
+    return {
+      status: 'sucesso',
+      usuario: {
+        id: profile.id,
+        nome: profile.nome,
+        email: profile.email,
+        tipoUsuario: profile.tipo_usuario, // 'aluno' ou 'professor'
+        classe: profile.classe,
+      },
+    };
+  } catch (error) {
+    console.error('Erro inesperado no login:', error);
     return { status: 'erro', mensagem: 'Erro de conexão. Tente novamente.' };
   }
 }

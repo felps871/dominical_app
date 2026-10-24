@@ -16,27 +16,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext'; // Mesmo contexto de tema usado em index.js
+import { useTheme } from '../context/ThemeContext';
 
-import { entrar, ROTA_POR_PERFIL } from '../services/Authservice'; // Armazenamento local temporário
+import { autenticarUsuario } from '../services/Authservice'; // Certifique-se de que a função existe no Authservice.js
 
-// Rota da tela de cadastro
 const ROTA_CADASTRO = '/cadastro';
 
-// ---------------------------------------------------------------------------
-// Validação de e-mail (somente local)
-//
-// Confere a ESTRUTURA do endereço e se o sufixo final (.com, .org, .br...) é
-// conhecido. Assim, "usuario@exemplo" (sem domínio) e "usuario@exemplo.von"
-// (sufixo inexistente) são rejeitados.
-//
-// Limitações:
-// - Isto NÃO prova que o e-mail existe nem que pertence à pessoa. Só um envio
-//   real de mensagem (confirmação de e-mail) pode comprovar isso.
-// - Sufixos novos ou muito raros que não estejam nas listas abaixo são
-//   rejeitados. Se necessário, basta incluí-los na lista.
-// - Domínios internacionalizados (com acentos ou "xn--") não são aceitos.
-// ---------------------------------------------------------------------------
+// Mapeamento exato de rotas com base no tipo de usuário armazenado no Supabase
+const ROTA_POR_PERFIL = {
+  aluno: '/screens/aluno',
+  professor: '/screens/professor',
+};
+
 const SUFIXOS_PAISES =
   'ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bm bn bo br bs bt bw by bz ' +
   'ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg er es et eu fi fj fk fm fo fr ' +
@@ -66,19 +57,15 @@ const emailTemFormatoValido = (email) => {
   if (partes.length !== 2) return false;
   const [local, dominio] = partes;
 
-  // Parte antes do @: caracteres comuns, sem ponto no início/fim nem pontos seguidos
   if (!local || local.length > 64) return false;
   if (!/^[A-Za-z0-9._%+-]+$/.test(local)) return false;
   if (local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
 
-  // Domínio: pelo menos dois blocos separados por ponto, cada um bem formado
   const rotulos = dominio.split('.');
   if (rotulos.length < 2 || !rotulos.every(rotuloDeDominioValido)) return false;
 
-  // Sufixo final precisa ser conhecido
   return SUFIXOS_VALIDOS.has(rotulos[rotulos.length - 1].toLowerCase());
 };
-
 
 const validarEmail = (valor) => {
   const email = valor.trim();
@@ -95,7 +82,6 @@ const validarSenha = (valor) => {
 export default function Login() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  // Parâmetros enviados pelo cadastro após criar a conta
   const { cadastro, email: emailParam } = useLocalSearchParams();
 
   const senhaRef = useRef(null);
@@ -105,25 +91,22 @@ export default function Login() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [campoFocado, setCampoFocado] = useState(null);
   const [erros, setErros] = useState({ email: '', senha: '' });
-  const [aviso, setAviso] = useState(null); // { tipo: 'sucesso' | 'erro', texto }
+  const [aviso, setAviso] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
-  // Ao voltar do cadastro: preenche o e-mail e informa que a conta foi salva
   useEffect(() => {
     if (cadastro !== 'ok') return;
     if (typeof emailParam === 'string' && emailParam) setEmail(emailParam);
     setAviso({
       tipo: 'sucesso',
-      texto: 'Cadastro salvo neste aparelho (armazenamento temporário). Entre com o seu e-mail e a senha.',
+      texto: 'Conta criada com sucesso! Entre com o seu e-mail e a senha.',
     });
   }, [cadastro, emailParam]);
 
-  // Mesmo gradiente da tela de escolha de perfil
   const gradientColors = isDarkMode
     ? ['#0f172a', '#1e3a8a']
     : ['#f8fafc', '#e2e8f0'];
 
-  // Cores auxiliares com contraste adequado sobre o card de cada tema
   const corErro = isDarkMode ? '#F87171' : '#DC2626';
   const corLink = isDarkMode ? '#60A5FA' : '#2563EB';
   const corPlaceholder = isDarkMode ? '#94A3B8' : '#64748B';
@@ -144,7 +127,6 @@ export default function Login() {
 
   const sairDoCampo = (campo) => {
     setCampoFocado(null);
-    // Valida ao sair do campo, mas só se o usuário já digitou algo
     if (campo === 'email' && email.length > 0) {
       setErros((atual) => ({ ...atual, email: validarEmail(email) }));
     }
@@ -165,25 +147,29 @@ export default function Login() {
 
     setCarregando(true);
     try {
-      // PONTO DE INTEGRAÇÃO: hoje usa o armazenamento local (src/services/authService.js).
-      // No futuro, só a função "entrar" desse arquivo muda para usar o Supabase.
-      const resultado = await entrar({ email: email.trim().toLowerCase(), senha });
+      // Autenticação integrada com o Supabase e consulta do tipo de usuário
+      const resultado = await autenticarUsuario({ email: email.trim().toLowerCase(), senha });
 
       if (resultado.status !== 'sucesso') {
         setAviso({ tipo: 'erro', texto: resultado.mensagem });
         return;
       }
 
-      // Encaminha para a tela do perfil cadastrado (aluno ou professor)
       const { usuario } = resultado;
-      const rota = ROTA_POR_PERFIL[usuario.tipoUsuario];
+      
+      // Normaliza para minúsculas para garantir correspondência exata com o objeto de rotas
+      const tipoNormalizado = usuario.tipoUsuario ? usuario.tipoUsuario.toLowerCase().trim() : '';
+      const rota = ROTA_POR_PERFIL[tipoNormalizado];
+      
       if (!rota) {
-        setAviso({ tipo: 'erro', texto: 'Não foi possível identificar o perfil desta conta.' });
+        setAviso({ tipo: 'erro', texto: `Perfil não reconhecido (${usuario.tipoUsuario || 'vazio'}).` });
         return;
       }
+
+      // Redireciona para o painel correspondente (/aluno ou /professor)
       router.replace({ pathname: rota, params: { userName: usuario.nome } });
     } catch (e) {
-      console.warn('Erro inesperado no login:', e?.name);
+      console.warn('Erro inesperado no login:', e?.message || e);
       setAviso({ tipo: 'erro', texto: 'Não foi possível entrar. Tente novamente.' });
     } finally {
       setCarregando(false);
@@ -204,7 +190,6 @@ export default function Login() {
 
   return (
     <LinearGradient colors={gradientColors} style={styles.background}>
-      {/* Esconde o cabeçalho padrão sem alterar o _layout.js */}
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle={theme.statusBar} backgroundColor="transparent" translucent />
 
@@ -213,7 +198,6 @@ export default function Login() {
           style={styles.flex}
           behavior="padding"
         >
-          {/* Botão de alternância de tema (mesmo padrão do index.js) */}
           <View style={styles.headerTheme}>
             <TouchableOpacity
               onPress={toggleTheme}
@@ -333,7 +317,7 @@ export default function Login() {
                   </View>
                 )}
 
-                {/* Aviso: cadastro salvo ou erro de login */}
+                {/* Aviso */}
                 {!!aviso && (
                   <View
                     style={[
@@ -351,7 +335,7 @@ export default function Login() {
                   </View>
                 )}
 
-                {/* Botão principal (mesmo azul do botão primário de home.js) */}
+                {/* Botão de Entrar */}
                 <TouchableOpacity
                   style={[styles.botaoEntrar, carregando && styles.botaoDesativado]}
                   onPress={handleEntrar}

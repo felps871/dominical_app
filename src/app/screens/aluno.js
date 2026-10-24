@@ -56,25 +56,68 @@ export default function AlunoScreen() {
     try {
       setLoading(true);
 
-      // 1. Tenta obter o usuário logado
+      // 1. Obtém o usuário autenticado no Supabase Auth
       const { data: { user } } = await supabase.auth.getUser();
 
+      let alunoEncontrado = null;
+
       if (user) {
-        const { data: perfil } = await supabase
-          .from('perfis')
+        // TENTATIVA 1: Busca direta na tabela 'alunos' usando o user_id
+        const { data: alunoPorId } = await supabase
+          .from('alunos')
           .select('*')
-          .eq('id', user.id)
-          .single();
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (perfil) {
-          setPerfilAluno(perfil);
+        if (alunoPorId) {
+          alunoEncontrado = alunoPorId;
+        } else {
+          // TENTATIVA 2 (FALLBACK): Busca o perfil na tabela 'users' para buscar por nome
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (userProfile && userProfile.nome) {
+            const primeiroNome = userProfile.nome.trim().split(' ')[0];
+
+            const { data: alunosData } = await supabase
+              .from('alunos')
+              .select('*')
+              .ilike('nome', `%${primeiroNome}%`)
+              .limit(1);
+
+            if (alunosData && alunosData.length > 0) {
+              alunoEncontrado = alunosData[0];
+            }
+          }
         }
-
-        await fetchFrequencia(user.id);
       }
 
-      // 2. Busca as lições cadastradas na tabela "licoes"
-      await fetchLicoes();
+      // Se encontrou o aluno na tabela 'alunos':
+      if (alunoEncontrado) {
+        // AUTO-VINCULAÇÃO: Se o user_id ainda estava NULL, grava o ID do login no banco
+        if (!alunoEncontrado.user_id && user) {
+          await supabase
+            .from('alunos')
+            .update({ user_id: user.id })
+            .eq('id', alunoEncontrado.id);
+          
+          alunoEncontrado.user_id = user.id; // Atualiza o estado local
+        }
+
+        setPerfilAluno(alunoEncontrado);
+
+        // Busca a frequência na tabela 'presenca' usando o ID numérico (bigint)
+        await fetchFrequencia(alunoEncontrado.id);
+
+        // Busca as lições filtradas pela classe do aluno
+        await fetchLicoes(alunoEncontrado.classe);
+      } else {
+        console.warn('Registro de aluno não localizado na tabela alunos.');
+        await fetchLicoes(null); // Traz todas as lições como fallback
+      }
 
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
@@ -106,12 +149,13 @@ export default function AlunoScreen() {
     }
   };
 
-  const fetchFrequencia = async (alunoId) => {
+  const fetchFrequencia = async (alunoIdNumerico) => {
     try {
+      // Consulta a tabela "presenca" usando o "aluno_id" correspondente ao ID numérico (bigint)
       const { data: presencas, error } = await supabase
-        .from('frequencias')
+        .from('presenca')
         .select('*')
-        .eq('aluno_id', alunoId);
+        .eq('aluno_id', alunoIdNumerico);
 
       if (error || !presencas) return;
 
@@ -297,7 +341,7 @@ export default function AlunoScreen() {
             >
               <Text style={[styles.cardTitulo, { color: theme.text }]}>Nenhuma Lição Cadastrada</Text>
               <Text style={[styles.cardSub, { color: theme.subtext }]}>
-                O Superintendente ainda não lançou as próximas aulas.
+                O Superintendente ainda não lançou as próximas aulas para a sua classe.
               </Text>
             </View>
           ) : (
@@ -326,8 +370,8 @@ export default function AlunoScreen() {
             ))
           )}
 
-          <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-            <Text style={styles.buttonText}>Voltar / Sair</Text>
+          <TouchableOpacity style={styles.button} onPress={() => router.replace('/')}>
+            <Text style={styles.buttonText}>Sair / Voltar ao Login</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
