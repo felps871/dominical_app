@@ -15,9 +15,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
 import { supabase } from '../supabase';
 
 export default function ChamadaScreen() {
+  const router = useRouter();
+
   // Aba ativa (Chamada Atual vs Histórico)
   const [tabAtiva, setTabAtiva] = useState('chamada');
   const [subTabHistorico, setSubTabHistorico] = useState('alunos');
@@ -50,6 +53,15 @@ export default function ChamadaScreen() {
   // Feedback e Loading
   const [loading, setLoading] = useState(false);
   const [salvando, setSalvando] = useState(false);
+
+  // Função segura para voltar no histórico de navegação
+  const handleVoltar = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/superintendente'); // Rota de fallback padrão
+    }
+  };
 
   // Formatação de data
   const formatarDataBR = (dateObj) => {
@@ -277,8 +289,13 @@ export default function ChamadaScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Cabeçalho */}
-      <Text style={styles.title}>📋 Gestão de Classes & Chamada</Text>
+      {/* Cabeçalho com Botão de Voltar Seguro */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={handleVoltar} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color="#F8FAFC" />
+        </TouchableOpacity>
+        <Text style={styles.title}>📋 Gestão de Classes & Chamada</Text>
+      </View>
 
       {/* Seletor de Classe */}
       <Text style={styles.labelSection}>Selecionar Turma / Classe:</Text>
@@ -619,7 +636,9 @@ export default function ChamadaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#0F172A' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#F8FAFC', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  backBtn: { marginRight: 12, padding: 4 },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#F8FAFC', flex: 1 },
   labelSection: { fontSize: 13, fontWeight: '600', color: '#94A3B8', marginBottom: 6 },
   
   classSelector: { maxHeight: 40, marginBottom: 12 },

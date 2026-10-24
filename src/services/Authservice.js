@@ -1,11 +1,21 @@
 import { supabase } from '../supabase'; 
+import { makeRedirectUri } from 'expo-auth-session';
 
 // 1. Função de Cadastro de Usuário
 export async function cadastrarUsuario({ nome, email, senha, tipoUsuario, classe }) {
   try {
+    // Cria a URL de redirecionamento profunda (deep link) para a tua app
+    const redirectTo = makeRedirectUri({
+      scheme: 'dominicalapp',
+      path: '(auth)/login', // Altera para a rota para onde queres mandá-lo após confirmar
+    });
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password: senha,
+      options: {
+        emailRedirectTo: redirectTo,
+      },
     });
 
     if (authError) {
@@ -46,10 +56,9 @@ export async function cadastrarUsuario({ nome, email, senha, tipoUsuario, classe
   }
 }
 
-// 2. Função de Autenticação/Login (Faltava esta no seu serviço)
+// 2. Função de Autenticação/Login
 export async function autenticarUsuario({ email, senha }) {
   try {
-    // Faz o login no Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password: senha,
@@ -61,7 +70,6 @@ export async function autenticarUsuario({ email, senha }) {
 
     const userId = authData.user.id;
 
-    // Busca os dados complementares na tabela personalizada 'users'
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('*')
@@ -78,7 +86,7 @@ export async function autenticarUsuario({ email, senha }) {
         id: profile.id,
         nome: profile.nome,
         email: profile.email,
-        tipoUsuario: profile.tipo_usuario, // 'aluno' ou 'professor'
+        tipoUsuario: profile.tipo_usuario,
         classe: profile.classe,
       },
     };

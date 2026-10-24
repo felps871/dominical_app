@@ -165,6 +165,15 @@ export default function SuperintendenteScreen() {
     carregarRelatorioLicoes();
   };
 
+  // Função de navegação segura para voltar
+  const handleVoltar = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/superintendente'); // Ajuste conforme a rota padrão de destino
+    }
+  };
+
   // Converte data de YYYY-MM-DD para DD/MM/YYYY
   const formatarData = (dataString) => {
     if (!dataString) return 'Data N/A';
@@ -253,9 +262,26 @@ export default function SuperintendenteScreen() {
     ]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* Cabeçalho da Tela */}
+      {/* Cabeçalho da Tela com Botão de Voltar */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
+        <TouchableOpacity
+          onPress={handleVoltar}
+          style={[
+            styles.backBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={20}
+            color={isDarkMode ? '#F8FAFC' : '#0F172A'}
+          />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
             📊 Relatório de Lições
           </Text>
@@ -380,8 +406,9 @@ export default function SuperintendenteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 'bold' },
-  sub: { marginTop: 2, fontSize: 13 },
+  title: { fontSize: 20, fontWeight: 'bold' },
+  sub: { marginTop: 2, fontSize: 12 },
+  backBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Estilos Dashboard KPI

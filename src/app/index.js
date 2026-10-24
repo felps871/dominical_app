@@ -26,6 +26,7 @@ const ROTA_CADASTRO = '/cadastro';
 const ROTA_POR_PERFIL = {
   aluno: '/screens/aluno',
   professor: '/screens/professor',
+  superintendente: '/screens/superintendente', // <-- Atualizado aqui
 };
 
 const SUFIXOS_PAISES =

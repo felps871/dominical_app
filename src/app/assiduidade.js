@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 // Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme o seu projeto
 
 export default function AssiduidadeScreen() {
+  const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const [ranking, setRanking] = useState([]);
@@ -90,6 +92,15 @@ export default function AssiduidadeScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     carregarRanking();
+  };
+
+  // Função segura para voltar no histórico de navegação
+  const handleVoltar = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/superintendente'); // Rota de fallback caso não haja tela anterior
+    }
   };
 
   const renderPosicaoBadge = (index) => {
@@ -170,7 +181,25 @@ export default function AssiduidadeScreen() {
 
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
+        {/* Botão de Voltar Seguro */}
+        <TouchableOpacity
+          onPress={handleVoltar}
+          style={[
+            styles.backBtn,
+            {
+              backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+              borderColor: theme.border || (isDarkMode ? '#334155' : '#CBD5E1')
+            }
+          ]}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={20}
+            color={isDarkMode ? '#F8FAFC' : '#0F172A'}
+          />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
             🏆 Ranking de Assiduidade
           </Text>
@@ -262,8 +291,9 @@ export default function AssiduidadeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 'bold' },
-  sub: { marginTop: 4, fontSize: 13 },
+  title: { fontSize: 20, fontWeight: 'bold' },
+  sub: { marginTop: 2, fontSize: 12 },
+  backBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
 
   cardAluno: {
