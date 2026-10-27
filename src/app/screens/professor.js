@@ -19,8 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Importação do Contexto de Tema e Supabase
-import { useTheme } from '../../context/ThemeContext'; // Ajuste o caminho conforme sua estrutura
-import { supabase } from '../../supabase'; // Ajuste o caminho conforme sua estrutura
+import { useTheme } from '../../context/ThemeContext'; 
+import { supabase } from '../../supabase'; 
 
 const CLASSES = ['Jovens', 'Adultos', 'Juniores', 'Crianças'];
 
@@ -65,6 +65,16 @@ export default function ChamadaScreen() {
   const [loading, setLoading] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
+  // Função segura para voltar na navegação evitando o erro de GO_BACK
+  const handleVoltar = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      // Fallback seguro caso não haja ecrã anterior na pilha
+      router.replace('/'); // Ajuste para a rota principal/dashboard do seu app se necessário
+    }
+  };
+
   // Formata objeto Date para exibição ("DD/MM/AAAA")
   const formatarDataParaExibicao = (dateObj) => {
     if (!dateObj) return '';
@@ -84,16 +94,12 @@ export default function ChamadaScreen() {
 
   // Handlers para DateTimePicker
   const handleValueChangeData = (event, selectedDate) => {
-    if (selectedDate) {
-      setDataChamada(selectedDate);
-    }
     if (Platform.OS === 'android') {
       setShowPickerData(false);
     }
-  };
-
-  const handleDismissData = () => {
-    setShowPickerData(false);
+    if (selectedDate) {
+      setDataChamada(selectedDate);
+    }
   };
 
   // Busca alunos e histórico ao mudar de classe
@@ -293,7 +299,7 @@ export default function ChamadaScreen() {
         {/* TOP BAR / HEADER COM BOTÃO VOLTAR E ALTERNADOR DE TEMA */}
         <View style={styles.topHeader}>
           <TouchableOpacity 
-            onPress={() => router.back()}
+            onPress={handleVoltar}
             style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]}
           >
             <Ionicons name="arrow-back" size={22} color={theme.text} />
@@ -400,8 +406,7 @@ export default function ChamadaScreen() {
                   value={dataChamada}
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onValueChange={handleValueChangeData}
-                  onDismiss={handleDismissData}
+                  onChange={handleValueChangeData}
                 />
               )}
 
@@ -580,7 +585,7 @@ export default function ChamadaScreen() {
           )}
 
           {/* BOTÃO VOLTAR */}
-          <TouchableOpacity style={styles.buttonVoltar} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.buttonVoltar} onPress={handleVoltar}>
             <Text style={styles.buttonVoltarTexto}>Voltar / Sair</Text>
           </TouchableOpacity>
         </ScrollView>
