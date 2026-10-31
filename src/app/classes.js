@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,16 +18,25 @@ import { useRouter } from 'expo-router';
 
 // Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
-import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme o seu projeto
+import { useTheme } from '../context/ThemeContext';
 
 function ClassesScreen() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const classesEBD = ['Jovens', 'Adultos', 'Juniores', 'Crianças'];
-  const [classeSelecionada, setClasseSelecionada] = useState('Jovens');
+  // As quatro classes / submódulos solicitados
+  const classesEBD = ['Adultos', 'Jovens', 'Juniores', 'Crianças'];
+  
+  // Se null, visão geral dos 4 submódulos. Se string, gerenciamento dos alunos daquela classe.
+  const [classeSelecionada, setClasseSelecionada] = useState(null);
 
   const [alunos, setAlunos] = useState([]);
+  const [totaisClasses, setTotaisClasses] = useState({
+    Adultos: 0,
+    Jovens: 0,
+    Juniores: 0,
+    Crianças: 0,
+  });
   const [carregando, setCarregando] = useState(false);
 
   // Estados do Modal
@@ -34,49 +44,89 @@ function ClassesScreen() {
   const [alunoEditandoId, setAlunoEditandoId] = useState(null);
   const [novoNome, setNovoNome] = useState('');
   const [novaIdade, setNovaIdade] = useState('');
-  const [novaClasse, setNovaClasse] = useState('');
+  const [novaClasse, setNovaClasse] = useState('Adultos');
 
-  // 1. Procurar alunos no Supabase
-  const buscarAlunos = async () => {
+  // Buscar alunos e calcular a frequência real com base na tabela 'presenca'
+  const buscarDados = async () => {
     setCarregando(true);
-    const { data, error } = await supabase
-      .from('alunos')
-      .select('*')
-      .eq('classe', classeSelecionada)
-      .order('nome', { ascending: true });
+    
+    // 1. Busca os alunos
+    const { data: alunosData, error: alunosError } = await supabase.from('alunos').select('*');
 
-    if (error) {
-      Alert.alert('Erro Supabase', error.message || 'Não foi possível carregar os alunos.');
-      console.error(error);
-    } else {
-      setAlunos(data || []);
+    if (alunosError) {
+      Alert.alert('Erro Supabase', alunosError.message || 'Não foi possível carregar os alunos.');
+      console.error(alunosError);
+      setCarregando(false);
+      return;
     }
+
+    // 2. Busca todos os registros de presença para calcular o percentual de cada aluno
+    const { data: presencaData, error: presencaError } = await supabase.from('presenca').select('*');
+
+    if (presencaError) {
+      console.error('Erro ao buscar presenças:', presencaError);
+    }
+
+    const listaAlunos = alunosData || [];
+    const listaPresencas = presencaData || [];
+
+    // Mapeia contagens totais por classe para os cards do menu principal
+    const contagens = { Adultos: 0, Jovens: 0, Juniores: 0, Crianças: 0 };
+    listaAlunos.forEach((aluno) => {
+      if (contagens[aluno.classe] !== undefined) {
+        contagens[aluno.classe] += 1;
+      }
+    });
+    setTotaisClasses(contagens);
+
+    // Se houver uma classe selecionada, calcula a frequência de cada aluno e monta a lista
+    if (classeSelecionada) {
+      const filtrados = listaAlunos
+        .filter((a) => a.classe === classeSelecionada)
+        .map((aluno) => {
+          // Filtra registros de presença do aluno atual
+          const presencasDoAluno = listaPresencas.filter((p) => p.aluno_id === aluno.id);
+          const totalAulas = presencasDoAluno.length;
+
+          let porcentagem = 100; // Valor padrão caso não tenha nenhuma chamada registrada ainda
+          if (totalAulas > 0) {
+            const totalPresentes = presencasDoAluno.filter((p) => p.presente === true).length;
+            porcentagem = Math.round((totalPresentes / totalAulas) * 100);
+          }
+
+          return {
+            ...aluno,
+            frequencia: porcentagem,
+          };
+        })
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      setAlunos(filtrados);
+    }
+
     setCarregando(false);
   };
 
   useEffect(() => {
-    buscarAlunos();
+    buscarDados();
   }, [classeSelecionada]);
 
-  // 2. Limpar formulário e abrir Modal (Novo Aluno)
   const handleAbrirModalNovo = () => {
     setAlunoEditandoId(null);
     setNovoNome('');
     setNovaIdade('');
-    setNovaClasse(classeSelecionada);
+    setNovaClasse(classeSelecionada || 'Adultos');
     setModalVisivel(true);
   };
 
-  // 3. Preencher formulário e abrir Modal (Editar Aluno)
   const handleAbrirModalEditar = (aluno) => {
     setAlunoEditandoId(aluno.id);
     setNovoNome(aluno.nome || '');
     setNovaIdade(aluno.idade !== null && aluno.idade !== undefined ? String(aluno.idade) : '');
-    setNovaClasse(aluno.classe || classeSelecionada);
+    setNovaClasse(aluno.classe || 'Adultos');
     setModalVisivel(true);
   };
 
-  // 4. Criar ou Atualizar Aluno
   const handleSalvarAluno = async () => {
     if (!novoNome.trim()) {
       Alert.alert('Atenção', 'Por favor, digite o nome do aluno.');
@@ -102,31 +152,28 @@ function ClassesScreen() {
 
       if (error) {
         Alert.alert('Erro ao atualizar', error.message);
-        console.error(error);
       } else {
         Alert.alert('Sucesso', 'Aluno atualizado com sucesso!');
         setModalVisivel(false);
-        buscarAlunos();
+        buscarDados();
       }
     } else {
       const { error } = await supabase.from('alunos').insert([payload]);
 
       if (error) {
         Alert.alert('Erro ao salvar', error.message);
-        console.error(error);
       } else {
         Alert.alert('Sucesso', 'Aluno cadastrado com sucesso!');
         setModalVisivel(false);
-        buscarAlunos();
+        buscarDados();
       }
     }
   };
 
-  // 5. Excluir Aluno
   const handleConfirmarExclusao = (id, nome) => {
     Alert.alert(
       'Confirmar Exclusão',
-      `Deseja realmente remover ${nome} da classe?`,
+      `Deseja realmente remover ${nome}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -134,12 +181,10 @@ function ClassesScreen() {
           style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('alunos').delete().eq('id', id);
-
             if (error) {
-              Alert.alert('Erro', error.message || 'Não foi possível excluir o aluno.');
-              console.error(error);
+              Alert.alert('Erro', error.message);
             } else {
-              buscarAlunos();
+              buscarDados();
             }
           },
         },
@@ -153,14 +198,23 @@ function ClassesScreen() {
 
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (classeSelecionada) {
+              setClasseSelecionada(null);
+            } else {
+              router.back();
+            }
+          }} 
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={24} color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} />
         </TouchableOpacity>
+        
         <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-          Gestão de Classes
+          {classeSelecionada ? `Submódulo: ${classeSelecionada}` : 'Submódulos de Classes'}
         </Text>
 
-        {/* Botão de Alternância de Tema */}
         <TouchableOpacity
           onPress={toggleTheme}
           style={[
@@ -176,106 +230,122 @@ function ClassesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Abas das Classes */}
-      <View style={styles.tabsContainer}>
-        {classesEBD.map((classe) => {
-          const ativa = classe === classeSelecionada;
-          return (
-            <TouchableOpacity
-              key={classe}
-              style={[
-                styles.tab,
-                { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' },
-                ativa && styles.tabAtiva
-              ]}
-              onPress={() => setClasseSelecionada(classe)}
-            >
-              <Text style={[
-                styles.tabText,
-                { color: isDarkMode ? '#94A3B8' : '#64748B' },
-                ativa && styles.tabTextAtivo
-              ]}>
-                {classe}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {!classeSelecionada ? (
+        <ScrollView contentContainerStyle={styles.submodulosGrid}>
+          <Text style={[styles.instructionText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+            Selecione um submódulo para gerenciar os alunos da respectiva classe:
+          </Text>
 
-      {/* Seção da Lista com a Quantidade de Alunos */}
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.subTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-          Alunos de <Text style={{ color: '#2563EB' }}>{classeSelecionada}</Text>{' '}
-          <Text style={styles.contadorBadge}>({alunos.length})</Text>
-        </Text>
-        <TouchableOpacity style={styles.addBtn} onPress={handleAbrirModalNovo}>
-          <Ionicons name="person-add-outline" size={18} color="#FFF" />
-          <Text style={styles.addBtnText}>Adicionar</Text>
-        </TouchableOpacity>
-      </View>
+          {classesEBD.map((classe) => {
+            const totalAlunos = totaisClasses[classe] || 0;
+            return (
+              <TouchableOpacity
+                key={classe}
+                style={[
+                  styles.submoduloCard,
+                  {
+                    backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF'),
+                    borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
+                  }
+                ]}
+                onPress={() => setClasseSelecionada(classe)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.alunosBadgeContainer}>
+                  <Text style={styles.alunosBadgeNumber}>{totalAlunos}</Text>
+                  <Text style={styles.alunosBadgeLabel}>ALUNOS</Text>
+                </View>
 
-      {/* Lista de Alunos vinda do Supabase */}
-      {carregando ? (
-        <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 40 }} />
+                <View style={{ flex: 1, marginLeft: 16 }}>
+                  <Text style={[styles.submoduloCardTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+                    Classe {classe}
+                  </Text>
+                  <Text style={[styles.submoduloCardSubtitle, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Toque para gerenciar os alunos
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={20} color={isDarkMode ? '#64748B' : '#94A3B8'} />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       ) : (
-        <FlatList
-          data={alunos}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={48} color={isDarkMode ? '#475569' : '#94A3B8'} />
-              <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
-                Nenhum aluno cadastrado nesta classe.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <View style={[
-              styles.alunoCard,
-              {
-                backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF'),
-                borderColor: theme.border || (isDarkMode ? '#334155' : 'transparent'),
-                borderWidth: isDarkMode ? 1 : 0
+        <View style={{ flex: 1 }}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.subTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+              Alunos • <Text style={{ color: '#2563EB' }}>{classeSelecionada}</Text>{' '}
+              <Text style={styles.contadorBadge}>({alunos.length})</Text>
+            </Text>
+            <TouchableOpacity style={styles.addBtn} onPress={handleAbrirModalNovo}>
+              <Ionicons name="person-add-outline" size={18} color="#FFF" />
+              <Text style={styles.addBtnText}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {carregando ? (
+            <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={alunos}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="people-outline" size={48} color={isDarkMode ? '#475569' : '#94A3B8'} />
+                  <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+                    Nenhum aluno cadastrado neste submódulo.
+                  </Text>
+                </View>
               }
-            ]}>
-              <View style={[styles.avatar, { backgroundColor: isDarkMode ? '#1E3A8A' : '#DBEAFE' }]}>
-                <Text style={[styles.avatarText, { color: isDarkMode ? '#60A5FA' : '#2563EB' }]}>
-                  {item.nome ? item.nome.charAt(0).toUpperCase() : '?'}
-                </Text>
-              </View>
+              renderItem={({ item }) => {
+                const frequenciaPercentual = item.frequencia !== undefined ? item.frequencia : 100;
 
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.alunoNome, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-                  {item.nome}
-                </Text>
-                <Text style={[styles.alunoDetalhe, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                  {item.idade !== null && item.idade !== undefined
-                    ? `Idade: ${item.idade} anos`
-                    : 'Idade: Não informada'}{' '}
-                  • Classe: {item.classe}
-                </Text>
-              </View>
+                return (
+                  <View
+                    style={[
+                      styles.alunoCard,
+                      {
+                        backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF'),
+                        borderColor: theme.border || (isDarkMode ? '#334155' : 'transparent'),
+                        borderWidth: isDarkMode ? 1 : 0,
+                      }
+                    ]}
+                  >
+                    {/* Roda / Indicador de Porcentagem de Frequência Real ao lado do nome */}
+                    <View style={styles.frequenciaBadgeContainer}>
+                      <Text style={styles.frequenciaNumber}>{frequenciaPercentual}%</Text>
+                      <Text style={styles.frequenciaLabel}>FREQ.</Text>
+                    </View>
 
-              {/* Botões de Ação */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  onPress={() => handleAbrirModalEditar(item)}
-                  style={styles.iconBtn}
-                >
-                  <Ionicons name="pencil-outline" size={20} color={isDarkMode ? '#60A5FA' : '#2563EB'} />
-                </TouchableOpacity>
+                    {/* Nome em cima e detalhes (idade) abaixo */}
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.alunoNome, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
+                        {item.nome}
+                      </Text>
+                      <Text style={[styles.alunoDetalhe, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                        {item.idade !== null && item.idade !== undefined
+                          ? `Idade: ${item.idade} anos`
+                          : 'Idade: Não informada'}
+                      </Text>
+                    </View>
 
-                <TouchableOpacity
-                  onPress={() => handleConfirmarExclusao(item.id, item.nome)}
-                  style={styles.iconBtn}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
+                    {/* Botões de Ação */}
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity onPress={() => handleAbrirModalEditar(item)} style={styles.iconBtn}>
+                        <Ionicons name="pencil-outline" size={20} color={isDarkMode ? '#60A5FA' : '#2563EB'} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => handleConfirmarExclusao(item.id, item.nome)} style={styles.iconBtn}>
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              }}
+            />
           )}
-        />
+        </View>
       )}
 
       {/* Modal / Formulário */}
@@ -286,7 +356,7 @@ function ClassesScreen() {
             { backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFF') }
           ]}>
             <Text style={[styles.modalTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-              {alunoEditandoId ? 'Editar Aluno' : 'Novo Aluno'}
+              {alunoEditandoId ? 'Editar Aluno' : 'Novo Aluno no Submódulo'}
             </Text>
 
             <TextInput
@@ -321,7 +391,7 @@ function ClassesScreen() {
             />
 
             <TextInput
-              placeholder="Classe (ex: Jovens, Adultos...)"
+              placeholder="Submódulo / Classe (Adultos, Jovens...)"
               placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
               value={novaClasse}
               onChangeText={setNovaClasse}
@@ -365,28 +435,72 @@ function ClassesScreen() {
   );
 }
 
-// Export default obrigatório para o Expo Router
 export default ClassesScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16 },
   header: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
   backBtn: { paddingRight: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', flex: 1 },
+  title: { fontSize: 20, fontWeight: 'bold', flex: 1 },
   themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  tabsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginHorizontal: 2 },
-  tabAtiva: { backgroundColor: '#2563EB' },
-  tabText: { fontSize: 13, fontWeight: '600' },
-  tabTextAtivo: { color: '#FFF' },
+  instructionText: { fontSize: 14, marginBottom: 16 },
+  submodulosGrid: { paddingBottom: 20 },
+  submoduloCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    elevation: 1,
+  },
+  submoduloCardTitle: { fontSize: 16, fontWeight: 'bold' },
+  submoduloCardSubtitle: { fontSize: 12, marginTop: 2 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   subTitle: { fontSize: 16, fontWeight: 'bold' },
   contadorBadge: { color: '#2563EB', fontWeight: 'bold' },
   addBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6, fontSize: 13 },
   alunoCard: { padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 10, elevation: 1 },
-  avatar: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontWeight: 'bold', fontSize: 16 },
+  alunosBadgeContainer: {
+    width: 52,
+    height: 52,
+    backgroundColor: '#FFEDD5',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 4,
+  },
+  alunosBadgeNumber: {
+    color: '#C2410C',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  alunosBadgeLabel: {
+    color: '#C2410C',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  frequenciaBadgeContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+  },
+  frequenciaNumber: {
+    color: '#0369A1',
+    fontWeight: 'bold',
+    fontSize: 11,
+  },
+  frequenciaLabel: {
+    color: '#0369A1',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
   alunoNome: { fontSize: 15, fontWeight: 'bold' },
   alunoDetalhe: { fontSize: 12, marginTop: 2 },
   actionButtons: { flexDirection: 'row', alignItems: 'center' },

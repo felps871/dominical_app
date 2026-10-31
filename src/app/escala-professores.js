@@ -114,7 +114,7 @@ export default function EscalaProfessores() {
     ADULTOS: 'Pr.Sandro, Dc. Vanderley, Pr.Ronie, Pb.Júnior, Ev.J.Humberto, Ev.Elias',
     JOVENS: 'Aux.JP, Dc.Joelson, Dc.Henrique, Dc.Vanderley, Pr.Sandro',
     JUNIORES: 'Joelson, Erika, Felipe, Amanda, D.Joelson, Vanderley',
-    CRIANÇAS: 'Amanda, Dorilene, Solange, Ana Luiza',
+    CRIANÇAS: 'Amanda, Dorilene, Solange',
   });
 
   const handleGenerateSchedule = () => {
@@ -225,7 +225,7 @@ export default function EscalaProfessores() {
           <Ionicons name="arrow-back" size={24} color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-          Escala Automática 📅
+          Escala Automática 
         </Text>
 
         <TouchableOpacity
@@ -300,7 +300,7 @@ export default function EscalaProfessores() {
           </View>
 
           <Text style={[styles.sectionSubtitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-            Professores por Turma (separados por vírgula)
+            Professores por Turma 
           </Text>
 
           {Object.keys(teachersByClass).map((classe) => (

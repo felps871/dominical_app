@@ -6,7 +6,10 @@ import {
   TouchableOpacity, 
   ScrollView, 
   ActivityIndicator,
-  StatusBar
+  StatusBar,
+  Modal,
+  Alert,
+  TextInput
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,6 +37,20 @@ export default function AlunoScreen() {
   const [perfilAluno, setPerfilAluno] = useState(null);
   const [mostrarDetalhesFreq, setMostrarDetalhesFreq] = useState(false);
 
+  // Dados do perfil (tabela "users")
+  const [perfilVisivel, setPerfilVisivel] = useState(false);
+  const [perfilUsuario, setPerfilUsuario] = useState({
+    nome: '',
+    classe: '',
+    email: '',
+  });
+
+  // Troca de senha dentro do app
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+
   // Estado da frequência individual do aluno
   const [frequencia, setFrequencia] = useState({
     mes: 0,
@@ -47,6 +64,11 @@ export default function AlunoScreen() {
   const gradientColors = isDarkMode
     ? ['#0f172a', '#1e3a8a']
     : ['#f8fafc', '#cbd5e1'];
+
+  // Dados exibidos no perfil (prioriza "alunos", depois "users")
+  const nomePerfil = perfilAluno?.nome || perfilUsuario.nome || 'Aluno';
+  const classePerfil = perfilAluno?.classe || perfilUsuario.classe || 'Aluno';
+  const inicial = String(nomePerfil).trim().charAt(0).toUpperCase() || 'A';
 
   useEffect(() => {
     carregarDadosAluno();
@@ -62,6 +84,21 @@ export default function AlunoScreen() {
       let alunoEncontrado = null;
 
       if (user) {
+        // Busca o registro na tabela "users" (usado no perfil e como fallback)
+        const { data: userProfile, error: errorUsers } = await supabase
+          .from('users')
+          .select('nome, email, classe')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (errorUsers) console.log('Erro ao buscar users:', errorUsers.message);
+
+        setPerfilUsuario({
+          nome: userProfile?.nome || '',
+          classe: userProfile?.classe || '',
+          email: userProfile?.email || user.email || '',
+        });
+
         // TENTATIVA 1: Busca direta na tabela 'alunos' usando o user_id
         const { data: alunoPorId } = await supabase
           .from('alunos')
@@ -71,26 +108,18 @@ export default function AlunoScreen() {
 
         if (alunoPorId) {
           alunoEncontrado = alunoPorId;
-        } else {
-          // TENTATIVA 2 (FALLBACK): Busca o perfil na tabela 'users' para buscar por nome
-          const { data: userProfile } = await supabase
-            .from('users')
+        } else if (userProfile && userProfile.nome) {
+          // TENTATIVA 2 (FALLBACK): busca por nome
+          const primeiroNome = userProfile.nome.trim().split(' ')[0];
+
+          const { data: alunosData } = await supabase
+            .from('alunos')
             .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
+            .ilike('nome', `%${primeiroNome}%`)
+            .limit(1);
 
-          if (userProfile && userProfile.nome) {
-            const primeiroNome = userProfile.nome.trim().split(' ')[0];
-
-            const { data: alunosData } = await supabase
-              .from('alunos')
-              .select('*')
-              .ilike('nome', `%${primeiroNome}%`)
-              .limit(1);
-
-            if (alunosData && alunosData.length > 0) {
-              alunoEncontrado = alunosData[0];
-            }
+          if (alunosData && alunosData.length > 0) {
+            alunoEncontrado = alunosData[0];
           }
         }
       }
@@ -151,7 +180,6 @@ export default function AlunoScreen() {
 
   const fetchFrequencia = async (alunoIdNumerico) => {
     try {
-      // Consulta a tabela "presenca" usando o "aluno_id" correspondente ao ID numérico (bigint)
       const { data: presencas, error } = await supabase
         .from('presenca')
         .select('*')
@@ -204,6 +232,66 @@ export default function AlunoScreen() {
     }
   };
 
+  // ---------- Ações do perfil ----------
+  const abrirPerfil = () => setPerfilVisivel(true);
+
+  const fecharPerfil = () => {
+    setPerfilVisivel(false);
+    setSenhaVisivel(false);
+    setNovaSenha('');
+    setConfirmarSenha('');
+  };
+
+  // Abre/fecha o formulário de troca de senha (sem e-mail)
+  const alterarSenha = () => setSenhaVisivel(!senhaVisivel);
+
+  const salvarNovaSenha = async () => {
+    if (novaSenha.length < 6) {
+      Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      Alert.alert('Atenção', 'As senhas não conferem.');
+      return;
+    }
+
+    setSalvandoSenha(true);
+    const { error } = await supabase.auth.updateUser({ password: novaSenha });
+    setSalvandoSenha(false);
+
+    if (error) {
+      Alert.alert('Erro', error.message);
+    } else {
+      Alert.alert('Sucesso 🎉', 'Senha alterada com sucesso!');
+      setNovaSenha('');
+      setConfirmarSenha('');
+      setSenhaVisivel(false);
+    }
+  };
+
+  const sair = () => {
+    Alert.alert('Sair', 'Deseja realmente sair da conta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.auth.signOut();
+          fecharPerfil();
+          router.replace('/'); // Ajuste para a sua rota de login
+        },
+      },
+    ]);
+  };
+
+  // Cores do perfil (seguindo o tema do app)
+  const corFundo = theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC');
+  const corCard = theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF');
+  const corBorda = theme.border || (isDarkMode ? '#334155' : '#E2E8F0');
+  const corTexto = theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A');
+  const corSub = theme.subtext || (isDarkMode ? '#94A3B8' : '#64748B');
+  const corIconeBox = isDarkMode ? '#334155' : '#E2E8F0';
+
   const badgeMes = getBadgeAssiduidade(frequencia.mes);
   const badgeAno = getBadgeAssiduidade(frequencia.ano);
 
@@ -212,7 +300,7 @@ export default function AlunoScreen() {
       <StatusBar barStyle={theme.statusBar} backgroundColor="transparent" translucent />
 
       <SafeAreaView style={{ flex: 1 }}>
-        {/* BOTÃO PARA ALTERNAR O TEMA NO TOPO */}
+        {/* TOPO: TEMA + AVATAR DE PERFIL */}
         <View style={styles.headerTheme}>
           <TouchableOpacity
             onPress={toggleTheme}
@@ -226,6 +314,11 @@ export default function AlunoScreen() {
               size={22}
               color={isDarkMode ? '#F59E0B' : '#6366F1'}
             />
+          </TouchableOpacity>
+
+          {/* Avatar de Perfil */}
+          <TouchableOpacity onPress={abrirPerfil} style={styles.avatarButton}>
+            <Text style={styles.avatarButtonText}>{inicial}</Text>
           </TouchableOpacity>
         </View>
 
@@ -375,6 +468,133 @@ export default function AlunoScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+
+      {/* ============ TELA DE PERFIL (MODAL) ============ */}
+      <Modal
+        visible={perfilVisivel}
+        animationType="slide"
+        onRequestClose={fecharPerfil}
+        statusBarTranslucent
+      >
+        <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
+          {/* Barra superior */}
+          <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
+            <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
+              <Ionicons name="arrow-back" size={24} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={styles.perfilTopTitle}>Meu perfil</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.perfilContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Cartão principal: avatar, nome e classe */}
+            <View
+              style={[
+                styles.perfilCard,
+                {
+                  backgroundColor: isDarkMode ? '#1E293B' : '#0F172A',
+                  borderColor: isDarkMode ? '#334155' : '#1E293B',
+                },
+              ]}
+            >
+              <View style={styles.perfilCardTopo}>
+                <View style={styles.perfilAvatar}>
+                  <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 16 }}>
+                  <Text style={styles.perfilNome} numberOfLines={2}>
+                    {nomePerfil}
+                  </Text>
+                  <View style={styles.badgePerfilClasse}>
+                    <Ionicons name="school-outline" size={14} color="#93C5FD" />
+                    <Text style={styles.badgePerfilClasseTexto}>{classePerfil}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* CONTATO */}
+            <Text style={[styles.perfilSecao, { color: corSub }]}>CONTATO</Text>
+            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+              <View style={styles.linhaInfo}>
+                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                  <Ionicons name="mail-outline" size={22} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.infoLabel, { color: corSub }]}>E-mail</Text>
+                  <Text style={[styles.infoValor, { color: corTexto }]} numberOfLines={1}>
+                    {perfilUsuario.email || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* CONTA */}
+            <Text style={[styles.perfilSecao, { color: corSub }]}>CONTA</Text>
+            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha}>
+                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                  <Ionicons name="key-outline" size={22} color="#2563EB" />
+                </View>
+                <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
+                <Ionicons
+                  name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
+                  size={20}
+                  color={corSub}
+                />
+              </TouchableOpacity>
+
+              {senhaVisivel && (
+                <View style={styles.formSenha}>
+                  <TextInput
+                    value={novaSenha}
+                    onChangeText={setNovaSenha}
+                    placeholder="Nova senha"
+                    placeholderTextColor={corSub}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                  />
+                  <TextInput
+                    value={confirmarSenha}
+                    onChangeText={setConfirmarSenha}
+                    placeholder="Confirmar nova senha"
+                    placeholderTextColor={corSub}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                  />
+                  <TouchableOpacity
+                    style={styles.btnSalvarSenha}
+                    onPress={salvarNovaSenha}
+                    disabled={salvandoSenha}
+                  >
+                    {salvandoSenha ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <Text style={styles.btnSalvarSenhaTexto}>Salvar nova senha</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+
+              <TouchableOpacity style={styles.linhaInfo} onPress={sair}>
+                <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+                </View>
+                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair</Text>
+                <Ionicons name="chevron-forward" size={20} color={corSub} />
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -384,6 +604,8 @@ const styles = StyleSheet.create({
   headerTheme: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 10,
     paddingHorizontal: 20,
     paddingTop: 10,
   },
@@ -399,6 +621,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
+  avatarButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2563EB',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+  },
+  avatarButtonText: { color: '#FFF', fontSize: 17, fontWeight: 'bold' },
   scrollContainer: { flexGrow: 1, alignItems: 'center', padding: 20 },
   h1: { fontSize: 26, fontWeight: 'bold', marginBottom: 12, width: '100%' },
   h2: { fontSize: 20, fontWeight: 'bold', marginTop: 16, marginBottom: 8, width: '100%' },
@@ -526,4 +760,102 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     opacity: 0.5,
   },
+
+  // ---------- Estilos do Perfil ----------
+  perfilContainer: { flex: 1 },
+  perfilTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  perfilBackBtn: { width: 40, height: 40, justifyContent: 'center' },
+  perfilTopTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  perfilContent: { padding: 20, paddingBottom: 60 },
+
+  perfilCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 22,
+    marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  perfilCardTopo: { flexDirection: 'row', alignItems: 'center' },
+  perfilAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2563EB',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  perfilAvatarTexto: { color: '#FFF', fontSize: 38, fontWeight: 'bold' },
+  perfilNome: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
+  badgePerfilClasse: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  badgePerfilClasseTexto: { color: '#93C5FD', fontWeight: 'bold', fontSize: 13 },
+
+  perfilSecao: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginTop: 18,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  perfilBox: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  linhaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  iconeBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoLabel: { fontSize: 12 },
+  infoValor: { fontSize: 16, fontWeight: 'bold', marginTop: 2 },
+  divisor: { height: 1 },
+
+  // ---------- Formulário de troca de senha ----------
+  formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  inputSenha: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  btnSalvarSenha: {
+    backgroundColor: '#2563EB',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  btnSalvarSenhaTexto: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
 });

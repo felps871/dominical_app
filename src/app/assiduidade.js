@@ -201,7 +201,7 @@ export default function AssiduidadeScreen() {
 
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-            🏆 Ranking de Assiduidade
+             Ranking de Assiduidade
           </Text>
           <Text style={[styles.sub, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
             Classificação de presença dos alunos

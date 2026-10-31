@@ -15,6 +15,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-, "src/app/index.js", "src/app/home.js", "src/app/_layout.js"  ]
+    "expo-env.d.ts",
+    "src/app/index.js",
+    "src/app/_layout.js",
+    "src/app/(tabs)/_layout.jsx"
+  ]
 }

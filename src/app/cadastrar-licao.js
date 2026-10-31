@@ -24,7 +24,7 @@ export default function CadastrarLicao() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const [classe, setClasse] = useState('Jovens');
+  const [classe, setClasse] = useState('Adultos');
   
   // Estados para Data do Cadastro
   const [dataLicao, setDataLicao] = useState(new Date());
@@ -203,7 +203,7 @@ export default function CadastrarLicao() {
           Selecione a Classe:
         </Text>
         <View style={styles.botoesClasse}>
-          {['Jovens', 'Adultos', 'Juniores', 'Crianças'].map((item) => (
+          {['Adultos', 'Jovens', 'Juniores', 'Crianças'].map((item) => (
             <TouchableOpacity 
               key={item} 
               style={[

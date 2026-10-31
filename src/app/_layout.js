@@ -4,18 +4,16 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { supabase } from '../supabase';
 import * as Linking from 'expo-linking';
 
-export default function Layout() {
+export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // 1. Trata a URL inicial caso a app tenha sido aberta através de um link externo
     Linking.getInitialURL().then(async (url) => {
       if (url) {
         handleDeepLink(url);
       }
     });
 
-    // 2. Ouve eventos de links disparados enquanto a app já está em execução
     const subscription = Linking.addEventListener('url', (event) => {
       handleDeepLink(event.url);
     });
@@ -43,15 +41,13 @@ export default function Layout() {
         const { access_token, refresh_token } = queryParams;
 
         if (access_token && refresh_token) {
-          // Define a sessão automaticamente no Supabase com os tokens recebidos
           const { error } = await supabase.auth.setSession({
             access_token,
             refresh_token,
           });
 
           if (!error) {
-            // Redireciona o utilizador diretamente para a tela 'home' após confirmar
-            router.replace('/home');
+            router.replace('/(tabs)/superintendente');
           }
         }
       } catch (error) {
@@ -62,15 +58,8 @@ export default function Layout() {
 
   return (
     <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="home" />
-        <Stack.Screen name="chamada" />
-        <Stack.Screen name="assiduidade" />
-        <Stack.Screen name="classes" />
-        <Stack.Screen name="ausentes" />
-        <Stack.Screen name="relatorios" />
-      </Stack>
+      {/* O Expo Router mapeia automaticamente todos os ficheiros e pastas dentro de src/app/ */}
+      <Stack screenOptions={{ headerShown: false }} />
     </ThemeProvider>
   );
 }

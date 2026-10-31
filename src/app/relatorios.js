@@ -12,10 +12,71 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 // Importa o cliente do Supabase e o Contexto de Tema
 import { supabase } from '../supabase';
 import { useTheme } from '../context/ThemeContext'; // Ajuste o caminho conforme seu projeto
+
+// ---------------------------------------------------------------
+// Componente de Gráfico de Pizza (Presentes x Ausentes)
+// ---------------------------------------------------------------
+const GraficoPizza = ({ presentes, ausentes, size = 100, isDarkMode }) => {
+  const total = presentes + ausentes;
+  const raio = size / 2;
+  const cx = raio;
+  const cy = raio;
+
+  const corPresentes = '#22C55E';
+  const corAusentes = '#EF4444';
+  const corVazio = isDarkMode ? '#334155' : '#E2E8F0';
+
+  // Sem dados: círculo cinza
+  if (total === 0) {
+    return (
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={raio} fill={corVazio} />
+      </Svg>
+    );
+  }
+
+  // 100% presentes ou 100% ausentes: círculo completo
+  if (ausentes === 0) {
+    return (
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={raio} fill={corPresentes} />
+      </Svg>
+    );
+  }
+  if (presentes === 0) {
+    return (
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={raio} fill={corAusentes} />
+      </Svg>
+    );
+  }
+
+  // Fatia dos presentes (começa no topo, sentido horário)
+  const anguloPresentes = (presentes / total) * 360;
+  const anguloRad = ((anguloPresentes - 90) * Math.PI) / 180;
+
+  const x1 = cx; // ponto inicial (topo)
+  const y1 = cy - raio;
+  const x2 = cx + raio * Math.cos(anguloRad);
+  const y2 = cy + raio * Math.sin(anguloRad);
+  const arcoGrande = anguloPresentes > 180 ? 1 : 0;
+
+  const caminhoPresentes = `M ${cx} ${cy} L ${x1} ${y1} A ${raio} ${raio} 0 ${arcoGrande} 1 ${x2} ${y2} Z`;
+
+  return (
+    <Svg width={size} height={size}>
+      {/* Fundo = ausentes */}
+      <Circle cx={cx} cy={cy} r={raio} fill={corAusentes} />
+      {/* Fatia = presentes */}
+      <Path d={caminhoPresentes} fill={corPresentes} />
+    </Svg>
+  );
+};
 
 export default function SuperintendenteScreen() {
   const router = useRouter();
@@ -79,7 +140,7 @@ export default function SuperintendenteScreen() {
         const licaoAtual = licoesMap[dataAula];
         const chaveClasse = p.classe || 'geral';
 
-        // Registra o maior valor de bíbliotecas e revistas enviado pela chamada da turma
+        // Registra o maior valor de bíblias e revistas enviado pela chamada da turma
         if (!licaoAtual.materiaisPorTurma[chaveClasse]) {
           licaoAtual.materiaisPorTurma[chaveClasse] = {
             biblias: 0,
@@ -283,7 +344,7 @@ export default function SuperintendenteScreen() {
 
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.title, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-            📊 Relatório de Lições
+             Relatório de Lições
           </Text>
           <Text style={[styles.sub, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
             Acompanhamento por data de aula na EBD
@@ -325,73 +386,108 @@ export default function SuperintendenteScreen() {
             />
           }
           contentContainerStyle={{ paddingBottom: 20 }}
-          renderItem={({ item }) => (
-            <View style={[
-              styles.cardLicao,
-              {
-                backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
-                borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
-              }
-            ]}>
-              {/* Data e % de Presença */}
+          renderItem={({ item }) => {
+            const totalAlunos = item.totalPresentes + item.totalAusentes;
+            const pctAusentes = totalAlunos > 0 ? 100 - item.pctFrequencia : 0;
+
+            return (
               <View style={[
-                styles.headerLicao,
-                { borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9' }
+                styles.cardLicao,
+                {
+                  backgroundColor: theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                  borderColor: theme.border || (isDarkMode ? '#334155' : '#E2E8F0'),
+                }
               ]}>
+                {/* Data e % de Presença */}
                 <View style={[
-                  styles.badgeData,
-                  { backgroundColor: isDarkMode ? '#1E3A8A' : '#DBEAFE' }
+                  styles.headerLicao,
+                  { borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9' }
                 ]}>
-                  <Text style={[
-                    styles.textoData,
-                    { color: isDarkMode ? '#93C5FD' : '#1E40AF' }
+                  <View style={[
+                    styles.badgeData,
+                    { backgroundColor: isDarkMode ? '#1E3A8A' : '#DBEAFE' }
                   ]}>
-                    📅 Aula: {formatarData(item.data)}
-                  </Text>
+                    <Text style={[
+                      styles.textoData,
+                      { color: isDarkMode ? '#93C5FD' : '#1E40AF' }
+                    ]}>
+                      📅 Aula: {formatarData(item.data)}
+                    </Text>
+                  </View>
+                  <Text style={styles.pctFrequencia}>{item.pctFrequencia}% Presença</Text>
                 </View>
-                <Text style={styles.pctFrequencia}>{item.pctFrequencia}% Presença</Text>
+
+                {/* GRÁFICO DE PIZZA + LEGENDA */}
+                <View style={styles.areaGrafico}>
+                  <GraficoPizza
+                    presentes={item.totalPresentes}
+                    ausentes={item.totalAusentes}
+                    size={100}
+                    isDarkMode={isDarkMode}
+                  />
+
+                  <View style={styles.legendaContainer}>
+                    <View style={styles.legendaItem}>
+                      <View style={[styles.legendaCor, { backgroundColor: '#22C55E' }]} />
+                      <Text style={[styles.legendaTexto, { color: theme.text || (isDarkMode ? '#E2E8F0' : '#0F172A') }]}>
+                        Presentes: {item.totalPresentes} ({item.pctFrequencia}%)
+                      </Text>
+                    </View>
+
+                    <View style={styles.legendaItem}>
+                      <View style={[styles.legendaCor, { backgroundColor: '#EF4444' }]} />
+                      <Text style={[styles.legendaTexto, { color: theme.text || (isDarkMode ? '#E2E8F0' : '#0F172A') }]}>
+                        Ausentes: {item.totalAusentes} ({pctAusentes}%)
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.legendaTotal, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Total registrado: {totalAlunos}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Estatísticas da Lição naquele domingo */}
+                <View style={styles.detalhesLicaoGrid}>
+                  <View style={styles.colunaMetrica}>
+                    <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Presentes
+                    </Text>
+                    <Text style={[styles.valorMetrica, { color: '#22C55E' }]}>
+                      {item.totalPresentes}
+                    </Text>
+                  </View>
+
+                  <View style={styles.colunaMetrica}>
+                    <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Ausentes
+                    </Text>
+                    <Text style={[styles.valorMetrica, { color: '#EF4444' }]}>
+                      {item.totalAusentes}
+                    </Text>
+                  </View>
+
+                  <View style={styles.colunaMetrica}>
+                    <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Bíblias
+                    </Text>
+                    <Text style={[styles.valorMetrica, { color: '#F59E0B' }]}>
+                      {item.qtdBiblias}
+                    </Text>
+                  </View>
+
+                  <View style={styles.colunaMetrica}>
+                    <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Revistas
+                    </Text>
+                    <Text style={[styles.valorMetrica, { color: '#A855F7' }]}>
+                      {item.qtdRevistas}
+                    </Text>
+                  </View>
+                </View>
               </View>
-
-              {/* Estatísticas da Lição naquele domingo */}
-              <View style={styles.detalhesLicaoGrid}>
-                <View style={styles.colunaMetrica}>
-                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                    Presentes
-                  </Text>
-                  <Text style={[styles.valorMetrica, { color: '#22C55E' }]}>
-                    {item.totalPresentes}
-                  </Text>
-                </View>
-
-                <View style={styles.colunaMetrica}>
-                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                    Ausentes
-                  </Text>
-                  <Text style={[styles.valorMetrica, { color: '#EF4444' }]}>
-                    {item.totalAusentes}
-                  </Text>
-                </View>
-
-                <View style={styles.colunaMetrica}>
-                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                    Bíblias
-                  </Text>
-                  <Text style={[styles.valorMetrica, { color: '#F59E0B' }]}>
-                    {item.qtdBiblias}
-                  </Text>
-                </View>
-
-                <View style={styles.colunaMetrica}>
-                  <Text style={[styles.labelMetrica, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                    Revistas
-                  </Text>
-                  <Text style={[styles.valorMetrica, { color: '#A855F7' }]}>
-                    {item.qtdRevistas}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
             <Text style={[styles.emptyText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
               Nenhuma lição registrada até o momento.
@@ -453,6 +549,20 @@ const styles = StyleSheet.create({
   },
   textoData: { fontWeight: 'bold', fontSize: 13 },
   pctFrequencia: { fontSize: 14, fontWeight: 'bold', color: '#22C55E' },
+
+  // Estilos do Gráfico de Pizza
+  areaGrafico: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    marginBottom: 14,
+  },
+  legendaContainer: { flexShrink: 1, gap: 8 },
+  legendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendaCor: { width: 12, height: 12, borderRadius: 6 },
+  legendaTexto: { fontSize: 13, fontWeight: '500' },
+  legendaTotal: { fontSize: 11, marginTop: 2 },
 
   detalhesLicaoGrid: {
     flexDirection: 'row',
