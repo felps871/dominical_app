@@ -61,7 +61,16 @@ function generateQuarterSchedule({ startDateInput, totalLessons = 13, teachersBy
 
     for (const classe of classes) {
       const teachersList = parsedTeachers[classe];
-      if (!teachersList || teachersList.length === 0) continue;
+      if (!teachersList || teachersList.length === 0) {
+        // Se o campo estiver vazio, insere em branco para o superintendente preencher
+        scheduleList.push({
+          licaoNum: lessonIndex + 1,
+          dataBR: dateBR,
+          classe: classe,
+          professor: '',
+        });
+        continue;
+      }
 
       let chosenTeacher = '';
       let attempts = 0;
@@ -110,11 +119,12 @@ export default function EscalaProfessores() {
   const [exporting, setExporting] = useState(false);
   const [generatedSchedule, setGeneratedSchedule] = useState([]);
 
+  // Campos de professores iniciados totalmente vazios
   const [teachersByClass, setTeachersByClass] = useState({
-    ADULTOS: 'Pr.Sandro, Dc. Vanderley, Pr.Ronie, Pb.Júnior, Ev.J.Humberto, Ev.Elias',
-    JOVENS: 'Aux.JP, Dc.Joelson, Dc.Henrique, Dc.Vanderley, Pr.Sandro',
-    JUNIORES: 'Joelson, Erika, Felipe, Amanda, D.Joelson, Vanderley',
-    CRIANÇAS: 'Amanda, Dorilene, Solange',
+    ADULTOS: '',
+    JOVENS: '',
+    JUNIORES: '',
+    CRIANÇAS: '',
   });
 
   const handleGenerateSchedule = () => {
@@ -201,13 +211,13 @@ export default function EscalaProfessores() {
     lessonsRows.push(
       <View key={lNum} style={styles.imageTableRow}>
         <Text style={styles.imageCellLesson}>
-          Lição {lNum} - {dateStr}
+          Lição {lNum}{'\n'}{dateStr}
         </Text>
         {classesList.map((c) => {
           const item = itemsForLesson.find((i) => i.classe === c);
           return (
             <Text key={c} style={styles.imageCellTeacher}>
-              {item ? item.professor : '-'}
+              {item && item.professor ? item.professor : '-'}
             </Text>
           );
         })}
@@ -300,7 +310,7 @@ export default function EscalaProfessores() {
           </View>
 
           <Text style={[styles.sectionSubtitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-            Professores por Turma 
+            Professores por Turma (Separe por vírgula)
           </Text>
 
           {Object.keys(teachersByClass).map((classe) => (
@@ -318,6 +328,8 @@ export default function EscalaProfessores() {
                 ]}
                 value={teachersByClass[classe]}
                 onChangeText={(text) => setTeachersByClass((prev) => ({ ...prev, [classe]: text }))}
+                placeholder="Ex: Professor 1, Professor 2, Professor 3"
+                placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
                 multiline
               />
             </View>

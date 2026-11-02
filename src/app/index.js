@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as SecureStore from 'expo-secure-store';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -10,6 +11,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -21,6 +23,11 @@ import { useTheme } from '../context/ThemeContext';
 import { autenticarUsuario } from '../services/Authservice'; // Certifique-se de que a função existe no Authservice.js
 
 const ROTA_CADASTRO = '/cadastro';
+
+// Chaves usadas no armazenamento seguro do aparelho
+const CHAVE_LEMBRAR = 'lembrar_de_mim';
+const CHAVE_EMAIL = 'email_salvo';
+const CHAVE_SENHA = 'senha_salva';
 
 // Mapeamento exato de rotas com base no tipo de usuário armazenado no Supabase
 const ROTA_POR_PERFIL = {
@@ -94,6 +101,48 @@ export default function Login() {
   const [erros, setErros] = useState({ email: '', senha: '' });
   const [aviso, setAviso] = useState(null);
   const [carregando, setCarregando] = useState(false);
+  const [lembrar, setLembrar] = useState(false);
+
+  // Carrega e-mail e senha salvos (se o usuário marcou "Lembrar de mim")
+  useEffect(() => {
+    carregarCredenciais();
+  }, []);
+
+  const carregarCredenciais = async () => {
+    try {
+      const ativo = await SecureStore.getItemAsync(CHAVE_LEMBRAR);
+      if (ativo !== 'true') return;
+
+      setLembrar(true);
+
+      // Se acabou de criar a conta, mantém o e-mail vindo do cadastro
+      if (cadastro === 'ok') return;
+
+      const emailSalvo = await SecureStore.getItemAsync(CHAVE_EMAIL);
+      const senhaSalva = await SecureStore.getItemAsync(CHAVE_SENHA);
+      if (emailSalvo) setEmail(emailSalvo);
+      if (senhaSalva) setSenha(senhaSalva);
+    } catch (err) {
+      console.log('Erro ao carregar credenciais:', err?.message || err);
+    }
+  };
+
+  // Salva ou apaga as credenciais conforme o interruptor
+  const gravarCredenciais = async (emailLogin) => {
+    try {
+      if (lembrar) {
+        await SecureStore.setItemAsync(CHAVE_LEMBRAR, 'true');
+        await SecureStore.setItemAsync(CHAVE_EMAIL, emailLogin);
+        await SecureStore.setItemAsync(CHAVE_SENHA, senha);
+      } else {
+        await SecureStore.deleteItemAsync(CHAVE_LEMBRAR);
+        await SecureStore.deleteItemAsync(CHAVE_EMAIL);
+        await SecureStore.deleteItemAsync(CHAVE_SENHA);
+      }
+    } catch (err) {
+      console.log('Erro ao gravar credenciais:', err?.message || err);
+    }
+  };
 
   useEffect(() => {
     if (cadastro !== 'ok') return;
@@ -148,13 +197,18 @@ export default function Login() {
 
     setCarregando(true);
     try {
+      const emailLogin = email.trim().toLowerCase();
+
       // Autenticação integrada com o Supabase e consulta do tipo de usuário
-      const resultado = await autenticarUsuario({ email: email.trim().toLowerCase(), senha });
+      const resultado = await autenticarUsuario({ email: emailLogin, senha });
 
       if (resultado.status !== 'sucesso') {
         setAviso({ tipo: 'erro', texto: resultado.mensagem });
         return;
       }
+
+      // Login válido: salva (ou apaga) as credenciais conforme o interruptor
+      await gravarCredenciais(emailLogin);
 
       const { usuario } = resultado;
       
@@ -318,6 +372,25 @@ export default function Login() {
                   </View>
                 )}
 
+                {/* Interruptor: Lembrar de mim */}
+                <View style={styles.lembrarLinha}>
+                  <Switch
+                    value={lembrar}
+                    onValueChange={setLembrar}
+                    trackColor={{ false: '#94A3B8', true: '#2563EB' }}
+                    thumbColor="#FFF"
+                    accessibilityLabel="Lembrar de mim"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setLembrar((v) => !v)}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lembrar de mim"
+                  >
+                    <Text style={[styles.lembrarTexto, { color: theme.text }]}>Lembrar de mim</Text>
+                  </TouchableOpacity>
+                </View>
+
                 {/* Aviso */}
                 {!!aviso && (
                   <View
@@ -472,6 +545,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '500',
+  },
+  lembrarLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  lembrarTexto: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   aviso: {
     flexDirection: 'row',

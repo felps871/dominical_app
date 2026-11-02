@@ -180,33 +180,46 @@ export default function AlunoScreen() {
 
   const fetchFrequencia = async (alunoIdNumerico) => {
     try {
+      console.log('Buscando frequência para o aluno ID:', alunoIdNumerico);
+
       const { data: presencas, error } = await supabase
         .from('presenca')
         .select('*')
         .eq('aluno_id', alunoIdNumerico);
 
-      if (error || !presencas) return;
+      if (error) {
+        console.log('Erro ao buscar presenças no Supabase:', error.message);
+        return;
+      }
+
+      if (!presencas || presencas.length === 0) {
+        console.log('Nenhum registro de presença encontrado para este aluno.');
+        return;
+      }
 
       const agora = new Date();
-      const mesAtual = agora.getMonth();
+      const mesAtual = agora.getMonth() + 1; // getMonth() vai de 0 a 11
       const anoAtual = agora.getFullYear();
 
+      // Filtro seguro por string de data para evitar problemas de fuso horário do JS
       const presencasMes = presencas.filter((item) => {
-        const d = new Date(item.data);
-        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+        if (!item.data) return false;
+        const [anoStr, mesStr] = item.data.split('T')[0].split('-');
+        return parseInt(mesStr, 10) === mesAtual && parseInt(anoStr, 10) === anoAtual;
       });
 
       const presencasAno = presencas.filter((item) => {
-        const d = new Date(item.data);
-        return d.getFullYear() === anoAtual;
+        if (!item.data) return false;
+        const [anoStr] = item.data.split('T')[0].split('-');
+        return parseInt(anoStr, 10) === anoAtual;
       });
 
       const totaisMes = presencasMes.length;
-      const presentesMes = presencasMes.filter(p => p.presente).length;
+      const presentesMes = presencasMes.filter(p => p.presente === true).length;
       const pctMes = totaisMes > 0 ? Math.round((presentesMes / totaisMes) * 100) : 0;
 
       const totaisAno = presencasAno.length;
-      const presentesAno = presencasAno.filter(p => p.presente).length;
+      const presentesAno = presencasAno.filter(p => p.presente === true).length;
       const pctAno = totaisAno > 0 ? Math.round((presentesAno / totaisAno) * 100) : 0;
 
       setFrequencia({
@@ -218,7 +231,7 @@ export default function AlunoScreen() {
         aulasTotaisAno: totaisAno,
       });
     } catch (err) {
-      console.error('Erro ao buscar frequência:', err);
+      console.error('Erro crítico ao processar frequência:', err);
     }
   };
 
@@ -242,7 +255,6 @@ export default function AlunoScreen() {
     setConfirmarSenha('');
   };
 
-  // Abre/fecha o formulário de troca de senha (sem e-mail)
   const alterarSenha = () => setSenhaVisivel(!senhaVisivel);
 
   const salvarNovaSenha = async () => {
@@ -278,13 +290,12 @@ export default function AlunoScreen() {
         onPress: async () => {
           await supabase.auth.signOut();
           fecharPerfil();
-          router.replace('/'); // Ajuste para a sua rota de login
+          router.replace('/');
         },
       },
     ]);
   };
 
-  // Cores do perfil (seguindo o tema do app)
   const corFundo = theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC');
   const corCard = theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF');
   const corBorda = theme.border || (isDarkMode ? '#334155' : '#E2E8F0');
@@ -477,7 +488,6 @@ export default function AlunoScreen() {
         statusBarTranslucent
       >
         <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
-          {/* Barra superior */}
           <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
             <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
               <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -490,7 +500,6 @@ export default function AlunoScreen() {
             contentContainerStyle={styles.perfilContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Cartão principal: avatar, nome e classe */}
             <View
               style={[
                 styles.perfilCard,
@@ -517,7 +526,6 @@ export default function AlunoScreen() {
               </View>
             </View>
 
-            {/* CONTATO */}
             <Text style={[styles.perfilSecao, { color: corSub }]}>CONTATO</Text>
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
               <View style={styles.linhaInfo}>
@@ -533,7 +541,6 @@ export default function AlunoScreen() {
               </View>
             </View>
 
-            {/* CONTA */}
             <Text style={[styles.perfilSecao, { color: corSub }]}>CONTA</Text>
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
               <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha}>
@@ -637,7 +644,6 @@ const styles = StyleSheet.create({
   h1: { fontSize: 26, fontWeight: 'bold', marginBottom: 12, width: '100%' },
   h2: { fontSize: 20, fontWeight: 'bold', marginTop: 16, marginBottom: 8, width: '100%' },
 
-  /* Estilos do Mini Card de Frequência */
   miniCardFreq: {
     borderRadius: 12,
     padding: 14,
@@ -667,7 +673,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  /* Estilos do Card de Lições */
   cardInfo: { 
     borderRadius: 12, 
     padding: 16, 
@@ -702,7 +707,6 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#2563eb', borderRadius: 12, padding: 14, marginTop: 24, width: '100%', alignItems: 'center' },
   buttonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 
-  /* Badges e Barras de Progresso */
   freqMetricContainer: {
     marginVertical: 2,
   },
@@ -761,7 +765,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
-  // ---------- Estilos do Perfil ----------
   perfilContainer: { flex: 1 },
   perfilTopBar: {
     flexDirection: 'row',
@@ -842,7 +845,6 @@ const styles = StyleSheet.create({
   infoValor: { fontSize: 16, fontWeight: 'bold', marginTop: 2 },
   divisor: { height: 1 },
 
-  // ---------- Formulário de troca de senha ----------
   formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   inputSenha: {
     borderWidth: 1,
