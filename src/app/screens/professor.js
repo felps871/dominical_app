@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,13 +20,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../supabase';
 
-// Quantas chamadas recentes aparecem na lista
-const MAX_CHAMADAS = 10;
-
 // Converte a string "YYYY-MM-DD" do banco para "DD/MM/AAAA"
 const formatarDataBR = (dataString) => {
   if (!dataString) return '';
-  const apenasData = String(dataString).split('T')[0];
+  const apenasData = dataString.split('T')[0];
   const partes = apenasData.split('-');
   if (partes.length !== 3) return dataString;
   const [ano, mes, dia] = partes;
@@ -47,171 +45,204 @@ export default function InicioScreen() {
 
   const [nomeUsuario, setNomeUsuario] = useState('Professor');
   const [emailUsuario, setEmailUsuario] = useState('');
+  const [classeProfessor, setClasseProfessor] = useState('');
   const [perfilVisivel, setPerfilVisivel] = useState(false);
 
-  // Frequências (tabela "presenca")
-  const [chamadas, setChamadas] = useState([]);
+  // Frequência
   const [mostrarDetalhesFreq, setMostrarDetalhesFreq] = useState(false);
   const [erroFreq, setErroFreq] = useState('');
-  const [chamadaAberta, setChamadaAberta] = useState(null);
   const [frequencia, setFrequencia] = useState({
     mes: 0,
     ano: 0,
-    presentesMes: 0,
-    totaisMes: 0,
-    presentesAno: 0,
-    totaisAno: 0,
+    aulasPresentesMes: 0,
+    aulasTotaisMes: 0,
+    aulasPresentesAno: 0,
+    aulasTotaisAno: 0,
   });
   const [carregandoFreq, setCarregandoFreq] = useState(true);
 
-  // Troca de senha dentro do app
+  // Lição
+  const [licaoProxima, setLicaoProxima] = useState(null);
+  const [loadingLicao, setLoadingLicao] = useState(true);
+
+  // Troca de senha
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [salvandoSenha, setSalvandoSenha] = useState(false);
 
   useEffect(() => {
-    carregarPerfil();
-    carregarFrequencias();
+    carregarDadosIniciais();
   }, []);
 
-  const carregarPerfil = async () => {
+  const carregarDadosIniciais = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      setCarregandoFreq(true);
+      setLoadingLicao(true);
+      
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       setEmailUsuario(user.email || '');
 
       const { data: perfil } = await supabase
         .from('users')
-        .select('nome')
+        .select('nome, classe')
         .eq('id', user.id)
         .maybeSingle();
 
-      setNomeUsuario(perfil?.nome || user.user_metadata?.nome || 'Professor');
+      const nomeAtual = perfil?.nome || user.user_metadata?.nome || 'Professor';
+      const classeAtual = perfil?.classe || '';
+      
+      setNomeUsuario(nomeAtual);
+      setClasseProfessor(classeAtual);
+
+      await Promise.all([
+        carregarFrequenciaIndividual(user.id, nomeAtual),
+        fetchProximaLicao(classeAtual)
+      ]);
+
     } catch (error) {
-      console.log('Erro ao carregar perfil:', error.message);
-    }
-  };
-
-  // Busca os registros da tabela "presenca" e agrupa por chamada (data + classe + horário)
-  const carregarFrequencias = async () => {
-    try {
-      setCarregandoFreq(true);
-      setErroFreq('');
-
-      const { data, error } = await supabase
-        .from('presenca')
-        .select('*, alunos(nome)')
-        .order('data', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (error) {
-        console.log('Erro ao buscar presenças:', error.message);
-        setErroFreq(error.message);
-        setChamadas([]);
-        return;
-      }
-
-      const registros = data || [];
-
-      // ---- Agrupa por chamada ----
-      const mapa = {};
-      registros.forEach((item) => {
-        const chave = `${item.data}|${item.classe}|${item.horario}`;
-        if (!mapa[chave]) {
-          mapa[chave] = {
-            chave,
-            data: item.data,
-            classe: item.classe,
-            horario: item.horario,
-            total: 0,
-            presentes: 0,
-            biblias: 0,
-            revistas: 0,
-            alunos: [],
-          };
-        }
-        const grupo = mapa[chave];
-        grupo.total += 1;
-        grupo.alunos.push({
-          nome: item.alunos?.nome || `Aluno #${item.aluno_id}`,
-          presente: item.presente === true,
-          justificativa: item.justificativa || '',
-        });
-        if (item.presente === true) grupo.presentes += 1;
-        grupo.biblias += item.qtd_biblias || 0;
-        grupo.revistas += item.qtd_revistas || 0;
-      });
-
-      // A ordem de inserção já segue data decrescente
-      setChamadas(Object.values(mapa));
-
-      // Resumo mensal e anual (contagens direto no banco, sem limite de 1000 linhas)
-      await carregarResumo();
-    } catch (err) {
-      console.log('Erro crítico ao processar frequências:', err?.message || err);
-      setErroFreq(String(err?.message || err));
-      setChamadas([]);
+      console.log('Erro ao carregar dados:', error.message);
+      setErroFreq(error.message);
     } finally {
       setCarregandoFreq(false);
+      setLoadingLicao(false);
     }
   };
 
-  // Conta presenças do mês e do ano atuais, somando todos os alunos
-  const carregarResumo = async () => {
-    const contar = async (inicio, fim, somentePresentes) => {
-      let query = supabase
-        .from('presenca')
-        .select('id', { count: 'exact', head: true })
-        .gte('data', inicio)
-        .lte('data', fim);
-      if (somentePresentes) query = query.eq('presente', true);
+  const carregarFrequenciaIndividual = async (userId, nomeProf) => {
+    try {
+      const { data: alunoPorId } = await supabase
+        .from('alunos')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      const { count, error } = await query;
-      if (error) {
-        console.log('Erro ao contar presenças:', error.message);
-        return 0;
+      let alunoIdAlvo = alunoPorId?.id;
+
+      if (!alunoIdAlvo) {
+        const primeiroNome = nomeProf.trim().split(' ')[0];
+        const { data: alunosData } = await supabase
+          .from('alunos')
+          .select('id')
+          .ilike('nome', `%${primeiroNome}%`)
+          .limit(1);
+
+        if (alunosData && alunosData.length > 0) {
+          alunoIdAlvo = alunosData[0].id;
+        }
       }
-      return count || 0;
-    };
 
-    const agora = new Date();
-    const ano = agora.getFullYear();
-    const mes = String(agora.getMonth() + 1).padStart(2, '0');
-    const ultimoDia = String(new Date(ano, agora.getMonth() + 1, 0).getDate()).padStart(2, '0');
+      let query = supabase.from('presenca').select('*');
+      if (alunoIdAlvo) {
+        query = query.eq('aluno_id', alunoIdAlvo);
+      }
 
-    const inicioMes = `${ano}-${mes}-01`;
-    const fimMes = `${ano}-${mes}-${ultimoDia}`;
-    const inicioAno = `${ano}-01-01`;
-    const fimAno = `${ano}-12-31`;
+      const { data: presencas, error } = await query;
+      if (error || !presencas || presencas.length === 0) return;
 
-    const [totaisMes, presentesMes, totaisAno, presentesAno] = await Promise.all([
-      contar(inicioMes, fimMes, false),
-      contar(inicioMes, fimMes, true),
-      contar(inicioAno, fimAno, false),
-      contar(inicioAno, fimAno, true),
-    ]);
+      const agora = new Date();
+      const mesAtual = agora.getMonth() + 1;
+      const anoAtual = agora.getFullYear();
 
-    setFrequencia({
-      mes: totaisMes > 0 ? Math.round((presentesMes / totaisMes) * 100) : 0,
-      ano: totaisAno > 0 ? Math.round((presentesAno / totaisAno) * 100) : 0,
-      presentesMes,
-      totaisMes,
-      presentesAno,
-      totaisAno,
-    });
+      const presencasMes = presencas.filter((item) => {
+        if (!item.data) return false;
+        const partes = item.data.split('T')[0].split('-');
+        if (partes.length < 2) return false;
+        const [anoStr, mesStr] = partes;
+        return parseInt(mesStr, 10) === mesAtual && parseInt(anoStr, 10) === anoAtual;
+      });
+
+      const presencasAno = presencas.filter((item) => {
+        if (!item.data) return false;
+        const partes = item.data.split('T')[0].split('-');
+        if (partes.length < 1) return false;
+        const [anoStr] = partes;
+        return parseInt(anoStr, 10) === anoAtual;
+      });
+
+      const totaisMes = presencasMes.length;
+      const presentesMes = presencasMes.filter(p => p.presente === true).length;
+      const pctMes = totaisMes > 0 ? Math.round((presentesMes / totaisMes) * 100) : 0;
+
+      const totaisAno = presencasAno.length;
+      const presentesAno = presencasAno.filter(p => p.presente === true).length;
+      const pctAno = totaisAno > 0 ? Math.round((presentesAno / totaisAno) * 100) : 0;
+
+      setFrequencia({
+        mes: pctMes,
+        ano: pctAno,
+        aulasPresentesMes: presentesMes,
+        aulasTotaisMes: totaisMes,
+        aulasPresentesAno: presentesAno,
+        aulasTotaisAno: totaisAno,
+      });
+
+    } catch (err) {
+      console.error('Erro ao processar frequência:', err);
+    }
+  };
+
+  const fetchProximaLicao = async (classeAluno) => {
+    try {
+      const hojeStr = new Date().toISOString().split('T')[0];
+
+      let query = supabase
+        .from('licoes')
+        .select('*')
+        .gte('data', hojeStr)
+        .order('data', { ascending: true })
+        .limit(1);
+
+      if (classeAluno) {
+        query = query.eq('classe', classeAluno);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Erro ao buscar próxima lição:', error.message);
+      } else if (data && data.length > 0) {
+        setLicaoProxima(data[0]);
+      } else {
+        let fallbackQuery = supabase
+          .from('licoes')
+          .select('*')
+          .order('id', { ascending: false })
+          .limit(1);
+
+        if (classeAluno) {
+          fallbackQuery = fallbackQuery.eq('classe', classeAluno);
+        }
+
+        const { data: fallbackData } = await fallbackQuery;
+        if (fallbackData && fallbackData.length > 0) {
+          setLicaoProxima(fallbackData[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar lição:', err);
+    }
+  };
+
+  const abrirRevistaDigital = (urlPersonalizada) => {
+    const linkPadrao = 'https://exemplo.com/sua-revista-digital';
+    const urlAlvo = urlPersonalizada || linkPadrao;
+
+    Linking.canOpenURL(urlAlvo).then((supported) => {
+      if (supported) {
+        Linking.openURL(urlAlvo);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o link da revista.');
+      }
+    }).catch((err) => console.error('Erro ao abrir link:', err));
   };
 
   const entrarNaChamada = () => {
     router.push('/chamada');
   };
 
-  // Funções do Modal de Perfil
   const abrirPerfil = () => setPerfilVisivel(true);
   const fecharPerfil = () => {
     setPerfilVisivel(false);
@@ -261,19 +292,19 @@ export default function InicioScreen() {
     ]);
   };
 
-  const corTexto = theme.text || (isDarkMode ? '#F8FAFC' : '#172033');
-  const corSubtexto = theme.subtext || (isDarkMode ? '#CBD5E1' : '#64748B');
+  const corTexto = theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A');
+  const corSubtexto = theme.subtext || (isDarkMode ? '#94A3B8' : '#64748B');
   const corCard = theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF');
-  const corBorda = theme.border || (isDarkMode ? '#475569' : '#CBD5E1');
+  const corBorda = theme.border || (isDarkMode ? '#334155' : '#E2E8F0');
   const corFundo = theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC');
-  const corIconeBox = isDarkMode ? '#334155' : '#E2E8F0';
+  const corIconeBox = isDarkMode ? '#334155' : '#F1F5F9';
 
   const primeiroNome = String(nomeUsuario).trim().split(' ')[0] || 'Professor';
   const inicial = primeiroNome.charAt(0).toUpperCase();
 
   const gradientColors = isDarkMode
-    ? ['#0F172A', '#172554']
-    : ['#F8FAFC', '#DBEAFE'];
+    ? ['#0F172A', '#1E293B']
+    : ['#F8FAFC', '#EFF6FF'];
 
   const badgeMes = getBadgeAssiduidade(frequencia.mes);
   const badgeAno = getBadgeAssiduidade(frequencia.ano);
@@ -287,9 +318,11 @@ export default function InicioScreen() {
       />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Barra superior contendo apenas o alternar tema e o avatar clicável */}
+        {/* Barra superior limpa e alinhada */}
         <View style={styles.topBar}>
-          <View style={{ flex: 1 }} />
+          <View style={styles.appBrandContainer}>
+            <Text style={[styles.appBrandTitle, { color: corTexto }]}>EBD Professor</Text>
+          </View>
 
           <View style={styles.topActions}>
             <TouchableOpacity
@@ -299,12 +332,11 @@ export default function InicioScreen() {
             >
               <Ionicons
                 name={isDarkMode ? 'sunny-outline' : 'moon-outline'}
-                size={21}
+                size={20}
                 color={isDarkMode ? '#FBBF24' : '#2563EB'}
               />
             </TouchableOpacity>
 
-            {/* Avatar Clicável (Abre o Modal de Perfil) */}
             <TouchableOpacity
               accessibilityLabel="Ir para o perfil"
               onPress={abrirPerfil}
@@ -316,251 +348,210 @@ export default function InicioScreen() {
           </View>
         </View>
 
-        {/* Conteúdo rolável: boas-vindas, botão e frequências */}
+        {/* Conteúdo rolável com espaçamento equilibrado */}
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Bloco Superior Unificado com "Olá, $nome" */}
+          {/* Card de Boas-vindas Aprimorado */}
           <View style={[styles.welcomeCard, { backgroundColor: corCard, borderColor: corBorda }]}>
-            <Text style={[styles.helloText, { color: corSubtexto }]}>
-              Olá, <Text style={[styles.nameText, { color: corTexto }]}>{primeiroNome}</Text>
-            </Text>
+            <View style={styles.welcomeTextGroup}>
+              <Text style={[styles.helloText, { color: corSubtexto }]}>Bem-vindo de volta,</Text>
+              <Text style={[styles.nameText, { color: corTexto }]}>{primeiroNome}</Text>
+            </View>
 
-            <View style={styles.roleLine}>
-              <Ionicons name="school-outline" size={20} color="#2563EB" />
-              <Text style={[styles.roleText, { color: corSubtexto }]}>Professor</Text>
+            <View style={[styles.roleBadgeContainer, { backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.15)' : '#EFF6FF' }]}>
+              <Ionicons name="school" size={16} color="#2563EB" />
+              <Text style={styles.roleBadgeText}>
+                {classeProfessor ? `Classe: ${classeProfessor}` : 'Professor'}
+              </Text>
             </View>
           </View>
 
-          {/* Botão Central de Registrar Frequência */}
+          {/* Botão de Ação Principal (CTA) */}
           <TouchableOpacity
-            activeOpacity={0.85}
+            activeOpacity={0.9}
             onPress={entrarNaChamada}
             style={styles.primaryButton}
           >
-            <Ionicons name="checkmark-circle-outline" size={23} color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>Registrar frequência</Text>
+            <View style={styles.primaryButtonContent}>
+              <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>Registrar Frequência</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
           </TouchableOpacity>
 
-          {/* ================= FREQUÊNCIAS (tabela presenca) ================= */}
+          {/* ================= RESUMO DE FREQUÊNCIAS ================= */}
           <View style={styles.secao}>
             <View style={styles.secaoHeader}>
-              <Text style={[styles.h2, { color: corTexto }]}>Frequências</Text>
+              <Text style={[styles.h2, { color: corTexto }]}>Minha Frequência</Text>
               <TouchableOpacity
-                onPress={carregarFrequencias}
+                onPress={() => carregarDadosIniciais()}
                 disabled={carregandoFreq}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={[styles.refreshButton, { borderColor: corBorda, backgroundColor: corCard }]}
                 accessibilityLabel="Atualizar frequências"
               >
-                <Ionicons name="refresh" size={22} color={isDarkMode ? '#38bdf8' : '#2563eb'} />
+                <Ionicons name="refresh-outline" size={18} color={isDarkMode ? '#38bdf8' : '#2563eb'} />
               </TouchableOpacity>
             </View>
 
             {carregandoFreq ? (
-              <ActivityIndicator
-                size="large"
-                color={isDarkMode ? '#38bdf8' : '#2563eb'}
-                style={{ marginVertical: 20 }}
-              />
+              <View style={[styles.loadingContainer, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <ActivityIndicator size="small" color={isDarkMode ? '#38bdf8' : '#2563eb'} />
+                <Text style={[styles.loadingText, { color: corSubtexto }]}>Calculando frequência...</Text>
+              </View>
             ) : erroFreq ? (
               <View style={[styles.cardInfo, { backgroundColor: corCard, borderColor: '#EF4444' }]}>
-                <Text style={[styles.cardTitulo, { color: '#EF4444' }]}>
-                  Não foi possível carregar
-                </Text>
+                <Text style={[styles.cardTitulo, { color: '#EF4444' }]}>Não foi possível carregar</Text>
                 <Text style={[styles.cardSub, { color: corSubtexto }]}>{erroFreq}</Text>
               </View>
-            ) : chamadas.length === 0 ? (
-              <View style={[styles.cardInfo, { backgroundColor: corCard, borderColor: corBorda }]}>
-                <Text style={[styles.cardTitulo, { color: corTexto }]}>
-                  Nenhuma frequência registrada
-                </Text>
-                <Text style={[styles.cardSub, { color: corSubtexto }]}>
-                  Toque em "Registrar frequência" para fazer a primeira chamada.
-                </Text>
-              </View>
             ) : (
-              <>
-                {/* Mini card de frequência (mês e ano) */}
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => setMostrarDetalhesFreq(!mostrarDetalhesFreq)}
-                  style={[
-                    styles.miniCardFreq,
-                    {
-                      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : corCard,
-                      borderColor: corBorda,
-                    },
-                  ]}
-                >
-                  <View style={styles.miniCardRow}>
-                    <View style={styles.miniCardInfoLeft}>
-                      <Ionicons
-                        name="stats-chart"
-                        size={18}
-                        color={isDarkMode ? '#38bdf8' : '#2563eb'}
-                      />
-                      <Text style={[styles.miniCardTitle, { color: corTexto }]}>
-                        Frequência: <Text style={{ fontWeight: 'bold' }}>{frequencia.mes}% Mês</Text>
-                      </Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setMostrarDetalhesFreq(!mostrarDetalhesFreq)}
+                style={[
+                  styles.miniCardFreq,
+                  {
+                    backgroundColor: corCard,
+                    borderColor: corBorda,
+                  },
+                ]}
+              >
+                <View style={styles.miniCardRow}>
+                  <View style={styles.miniCardInfoLeft}>
+                    <View style={[styles.statIconBox, { backgroundColor: badgeMes.bg }]}>
+                      <Ionicons name="stats-chart" size={18} color={badgeMes.color} />
                     </View>
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={[styles.badgeContainer, { backgroundColor: badgeMes.bg }]}>
-                        <Ionicons name={badgeMes.icon} size={12} color={badgeMes.color} />
-                        <Text style={[styles.badgeText, { color: badgeMes.color }]}>
-                          {badgeMes.text}
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name={mostrarDetalhesFreq ? 'chevron-up' : 'chevron-down'}
-                        size={18}
-                        color={corSubtexto}
-                      />
+                    <View>
+                      <Text style={[styles.miniCardLabel, { color: corSubtexto }]}>Taxa do Mês</Text>
+                      <Text style={[styles.miniCardTitle, { color: corTexto }]}>{frequencia.mes}% de presença</Text>
                     </View>
                   </View>
 
-                  {mostrarDetalhesFreq && (
-                    <View style={styles.expandedFreqContainer}>
-                      <View style={[styles.divider, { backgroundColor: corBorda }]} />
-
-                      {/* Presença Mensal */}
-                      <View style={styles.freqMetricContainer}>
-                        <Text style={[styles.freqLabel, { color: corTexto }]}>Presença Mensal</Text>
-                        <View style={styles.progressRow}>
-                          <View style={styles.progressBarBackground}>
-                            <View
-                              style={[
-                                styles.progressBarFill,
-                                { width: `${frequencia.mes}%`, backgroundColor: badgeMes.color },
-                              ]}
-                            />
-                          </View>
-                          <Text style={[styles.progressPercentText, { color: corTexto }]}>
-                            {frequencia.mes}%
-                          </Text>
-                        </View>
-                        <Text style={[styles.freqSubtext, { color: corSubtexto }]}>
-                          {frequencia.presentesMes} presenças em {frequencia.totaisMes} registros no mês
-                        </Text>
-                      </View>
-
-                      {/* Presença Anual */}
-                      <View style={[styles.freqMetricContainer, { marginTop: 10 }]}>
-                        <View style={styles.freqHeaderRow}>
-                          <Text style={[styles.freqLabel, { color: corTexto }]}>Presença Anual</Text>
-                          <View style={[styles.badgeContainer, { backgroundColor: badgeAno.bg }]}>
-                            <Ionicons name={badgeAno.icon} size={12} color={badgeAno.color} />
-                            <Text style={[styles.badgeText, { color: badgeAno.color }]}>
-                              {badgeAno.text}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.progressRow}>
-                          <View style={styles.progressBarBackground}>
-                            <View
-                              style={[
-                                styles.progressBarFill,
-                                { width: `${frequencia.ano}%`, backgroundColor: badgeAno.color },
-                              ]}
-                            />
-                          </View>
-                          <Text style={[styles.progressPercentText, { color: corTexto }]}>
-                            {frequencia.ano}%
-                          </Text>
-                        </View>
-                        <Text style={[styles.freqSubtext, { color: corSubtexto }]}>
-                          {frequencia.presentesAno} presenças em {frequencia.totaisAno} registros no ano
-                        </Text>
-                      </View>
+                  <View style={styles.miniCardRight}>
+                    <View style={[styles.badgeContainer, { backgroundColor: badgeMes.bg }]}>
+                      <Ionicons name={badgeMes.icon} size={12} color={badgeMes.color} />
+                      <Text style={[styles.badgeText, { color: badgeMes.color }]}>
+                        {badgeMes.text}
+                      </Text>
                     </View>
-                  )}
-                </TouchableOpacity>
+                    <Ionicons
+                      name={mostrarDetalhesFreq ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color={corSubtexto}
+                    />
+                  </View>
+                </View>
 
-                {/* Últimas chamadas */}
-                <Text style={[styles.subtitulo, { color: corSubtexto }]}>ÚLTIMAS CHAMADAS</Text>
+                {mostrarDetalhesFreq && (
+                  <View style={styles.expandedFreqContainer}>
+                    <View style={[styles.divider, { backgroundColor: corBorda }]} />
 
-                {chamadas.slice(0, MAX_CHAMADAS).map((item) => {
-                  const pct = item.total > 0 ? Math.round((item.presentes / item.total) * 100) : 0;
-                  const badge = getBadgeAssiduidade(pct);
-                  const faltas = item.total - item.presentes;
-                  const aberta = chamadaAberta === item.chave;
-
-                  return (
-                    <TouchableOpacity
-                      key={item.chave}
-                      activeOpacity={0.85}
-                      onPress={() => setChamadaAberta(aberta ? null : item.chave)}
-                      style={[styles.cardInfo, { backgroundColor: corCard, borderColor: corBorda }]}
-                    >
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.badgeClasse}>{item.classe}</Text>
-                        <Text
-                          style={[styles.cardData, { color: isDarkMode ? '#38bdf8' : '#0284c7' }]}
-                        >
-                          📅 {formatarDataBR(item.data)} · {item.horario}
-                        </Text>
+                    {/* Presença Mensal */}
+                    <View style={styles.freqMetricContainer}>
+                      <View style={styles.freqHeaderRow}>
+                        <Text style={[styles.freqLabel, { color: corTexto }]}>Mensal</Text>
+                        <Text style={[styles.freqValueText, { color: corTexto }]}>{frequencia.mes}%</Text>
                       </View>
-
-                      <View style={styles.progressRow}>
-                        <View style={styles.progressBarBackground}>
-                          <View
-                            style={[
-                              styles.progressBarFill,
-                              { width: `${pct}%`, backgroundColor: badge.color },
-                            ]}
-                          />
-                        </View>
-                        <Text style={[styles.progressPercentText, { color: corTexto }]}>
-                          {pct}%
-                        </Text>
+                      <View style={styles.progressBarBackground}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${frequencia.mes}%`, backgroundColor: badgeMes.color },
+                          ]}
+                        />
                       </View>
-
                       <Text style={[styles.freqSubtext, { color: corSubtexto }]}>
-                        ✅ {item.presentes} presentes · ❌ {faltas}{' '}
-                        {faltas === 1 ? 'falta' : 'faltas'} · {item.total} alunos
+                        {frequencia.aulasPresentesMes} de {frequencia.aulasTotaisMes} aulas registradas
                       </Text>
-                      <Text style={[styles.freqSubtext, { color: corSubtexto }]}>
-                        📖 {item.biblias} Bíblias · 📰 {item.revistas} Revistas
-                      </Text>
+                    </View>
 
-                      {aberta && (
-                        <View style={styles.listaAlunos}>
-                          <View style={[styles.divider, { backgroundColor: corBorda }]} />
-                          {[...item.alunos]
-                            .sort((x, y) => x.nome.localeCompare(y.nome))
-                            .map((aluno, idx) => (
-                              <View key={`${item.chave}-${idx}`} style={styles.alunoLinha}>
-                                <Ionicons
-                                  name={aluno.presente ? 'checkmark-circle' : 'close-circle'}
-                                  size={18}
-                                  color={aluno.presente ? '#10B981' : '#EF4444'}
-                                />
-                                <Text
-                                  style={[styles.alunoNome, { color: corTexto }]}
-                                  numberOfLines={1}
-                                >
-                                  {aluno.nome}
-                                </Text>
-                                {!aluno.presente && !!aluno.justificativa && (
-                                  <Text style={[styles.alunoJust, { color: corSubtexto }]} numberOfLines={1}>
-                                    {aluno.justificativa}
-                                  </Text>
-                                )}
-                              </View>
-                            ))}
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </>
+                    {/* Presença Anual */}
+                    <View style={[styles.freqMetricContainer, { marginTop: 14 }]}>
+                      <View style={styles.freqHeaderRow}>
+                        <Text style={[styles.freqLabel, { color: corTexto }]}>Anual</Text>
+                        <Text style={[styles.freqValueText, { color: corTexto }]}>{frequencia.ano}%</Text>
+                      </View>
+                      <View style={styles.progressBarBackground}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${frequencia.ano}%`, backgroundColor: badgeAno.color },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.freqSubtext, { color: corSubtexto }]}>
+                        {frequencia.aulasPresentesAno} de {frequencia.aulasTotaisAno} aulas registradas
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* ================= PRÓXIMA LIÇÃO ================= */}
+          <View style={styles.secao}>
+            <Text style={[styles.h2, { color: corTexto, marginBottom: 10 }]}>Próxima Lição</Text>
+
+            {loadingLicao ? (
+              <View style={[styles.loadingContainer, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <ActivityIndicator size="small" color={isDarkMode ? '#38bdf8' : '#2563eb'} />
+                <Text style={[styles.loadingText, { color: corSubtexto }]}>Buscando próxima aula...</Text>
+              </View>
+            ) : !licaoProxima ? (
+              <View style={[styles.cardInfo, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <Text style={[styles.cardTitulo, { color: corTexto }]}>Nenhuma Lição Encontrada</Text>
+                <Text style={[styles.cardSub, { color: corSubtexto }]}>
+                  Não há lições cadastradas para o próximo período na classe {classeProfessor || 'selecionada'}.
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.cardInfo,
+                  {
+                    backgroundColor: corCard,
+                    borderColor: corBorda,
+                  },
+                ]}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.badgeClasse}>{licaoProxima.classe}</Text>
+                  <View style={styles.dateBadge}>
+                    <Ionicons name="calendar-outline" size={13} color={isDarkMode ? '#38bdf8' : '#0284c7'} />
+                    <Text style={[styles.cardData, { color: isDarkMode ? '#38bdf8' : '#0284c7' }]}>
+                      {formatarDataBR(licaoProxima.data)}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.cardTitulo, { color: corTexto }]}>{licaoProxima.titulo}</Text>
+                
+                <View style={styles.teacherInfoRow}>
+                  <Ionicons name="person-outline" size={14} color={corSubtexto} />
+                  <Text style={[styles.cardSub, { color: corSubtexto }]}>
+                    Professor: <Text style={{ fontWeight: '600', color: corTexto }}>{licaoProxima.professor || nomeUsuario}</Text>
+                  </Text>
+                </View>
+
+                {licaoProxima.link_revista && (
+                  <TouchableOpacity 
+                    style={styles.linkButtonLicao} 
+                    onPress={() => abrirRevistaDigital(licaoProxima.link_revista)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="book-outline" size={16} color="#2563eb" />
+                    <Text style={styles.linkButtonLicaoText}>Acessar Revista Digital</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
         </ScrollView>
       </SafeAreaView>
 
-      {/* ============ TELA DE PERFIL (MODAL) ============ */}
+      {/* ============ MODAL DE PERFIL ============ */}
       <Modal
         visible={perfilVisivel}
         animationType="slide"
@@ -568,24 +559,25 @@ export default function InicioScreen() {
         statusBarTranslucent
       >
         <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
-          <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
+          <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF', borderBottomColor: corBorda, borderBottomWidth: 1 }]}>
             <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
-              <Ionicons name="arrow-back" size={24} color="#FFF" />
+              <Ionicons name="close" size={24} color={corTexto} />
             </TouchableOpacity>
-            <Text style={styles.perfilTopTitle}>Meu perfil</Text>
+            <Text style={[styles.perfilTopTitle, { color: corTexto }]}>Meu Perfil</Text>
             <View style={{ width: 40 }} />
           </View>
 
           <ScrollView
             contentContainerStyle={styles.perfilContent}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             <View
               style={[
                 styles.perfilCard,
                 {
-                  backgroundColor: isDarkMode ? '#1E293B' : '#0F172A',
-                  borderColor: isDarkMode ? '#334155' : '#1E293B',
+                  backgroundColor: corCard,
+                  borderColor: corBorda,
                 },
               ]}
             >
@@ -595,12 +587,12 @@ export default function InicioScreen() {
                 </View>
 
                 <View style={{ flex: 1, marginLeft: 16 }}>
-                  <Text style={styles.perfilNome} numberOfLines={2}>
+                  <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
                     {nomeUsuario}
                   </Text>
                   <View style={styles.badgePerfilClasse}>
-                    <Ionicons name="school-outline" size={14} color="#93C5FD" />
-                    <Text style={styles.badgePerfilClasseTexto}>Professor</Text>
+                    <Ionicons name="school-outline" size={14} color="#2563EB" />
+                    <Text style={styles.badgePerfilClasseTexto}>{classeProfessor || 'Professor'}</Text>
                   </View>
                 </View>
               </View>
@@ -610,7 +602,7 @@ export default function InicioScreen() {
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
               <View style={styles.linhaInfo}>
                 <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="mail-outline" size={22} color="#2563EB" />
+                  <Ionicons name="mail-outline" size={20} color="#2563EB" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: corSubtexto }]}>E-mail</Text>
@@ -621,16 +613,16 @@ export default function InicioScreen() {
               </View>
             </View>
 
-            <Text style={[styles.perfilSecao, { color: corSubtexto }]}>CONTA</Text>
+            <Text style={[styles.perfilSecao, { color: corSubtexto }]}>SEGURANÇA E CONTA</Text>
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha}>
+              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
                 <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="key-outline" size={22} color="#2563EB" />
+                  <Ionicons name="key-outline" size={20} color="#2563EB" />
                 </View>
                 <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
                 <Ionicons
                   name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
-                  size={20}
+                  size={18}
                   color={corSubtexto}
                 />
               </TouchableOpacity>
@@ -644,7 +636,7 @@ export default function InicioScreen() {
                     placeholderTextColor={corSubtexto}
                     secureTextEntry
                     autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
                   />
                   <TextInput
                     value={confirmarSenha}
@@ -653,17 +645,18 @@ export default function InicioScreen() {
                     placeholderTextColor={corSubtexto}
                     secureTextEntry
                     autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
                   />
                   <TouchableOpacity
                     style={styles.btnSalvarSenha}
                     onPress={salvarNovaSenha}
                     disabled={salvandoSenha}
+                    activeOpacity={0.8}
                   >
                     {salvandoSenha ? (
-                      <ActivityIndicator color="#FFF" />
+                      <ActivityIndicator color="#FFF" size="small" />
                     ) : (
-                      <Text style={styles.btnSalvarSenhaTexto}>Salvar nova senha</Text>
+                      <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -671,12 +664,12 @@ export default function InicioScreen() {
 
               <View style={[styles.divisor, { backgroundColor: corBorda }]} />
 
-              <TouchableOpacity style={styles.linhaInfo} onPress={sair}>
+              <TouchableOpacity style={styles.linhaInfo} onPress={sair} activeOpacity={0.7}>
                 <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
                 </View>
-                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair</Text>
-                <Ionicons name="chevron-forward" size={20} color={corSubtexto} />
+                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
+                <Ionicons name="chevron-forward" size={18} color={corSubtexto} />
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -697,131 +690,162 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  appBrandContainer: {
+    flex: 1,
+  },
+  appBrandTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   topActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#2563EB',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     elevation: 3,
   },
   avatarButtonText: {
     color: '#FFF',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 15, // Puxa o conteúdo mais para cima
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 36,
     gap: 20,
   },
   welcomeCard: {
     borderWidth: 1,
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 5,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  welcomeTextGroup: {
+    flex: 1,
+    gap: 2,
   },
   helloText: {
-    fontSize: 26,
+    fontSize: 14,
     fontWeight: '500',
   },
   nameText: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-  roleLine: {
+  roleBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  roleText: {
-    fontSize: 17,
+  roleBadgeText: {
+    color: '#2563EB',
+    fontSize: 12,
     fontWeight: '600',
   },
   primaryButton: {
-    minHeight: 58,
-    borderRadius: 20,
+    minHeight: 56,
+    borderRadius: 16,
     backgroundColor: '#2563EB',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 4,
+  },
+  primaryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
   },
-
-  // Seção de frequências
   secao: {
     width: '100%',
+    gap: 8,
   },
   secaoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
   },
   h2: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
-  subtitulo: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-    marginTop: 14,
-    marginBottom: 2,
-    marginLeft: 4,
-  },
-  resumoTitulo: {
-    flexDirection: 'row',
+  refreshButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
+  loadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   cardInfo: {
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
+    borderRadius: 16,
+    padding: 18,
     width: '100%',
     borderWidth: 1,
-    elevation: 2,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -833,70 +857,75 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     color: '#fff',
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '700',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
     overflow: 'hidden',
+    textTransform: 'uppercase',
   },
-  cardData: { fontSize: 12, fontWeight: 'bold' },
-  cardTitulo: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-  cardSub: { fontSize: 14 },
-
-  freqLabel: {
-    fontSize: 14,
+  dateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardData: { 
+    fontSize: 12, 
+    fontWeight: '600' 
+  },
+  cardTitulo: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  teacherInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  cardSub: { 
+    fontSize: 13 
+  },
+  linkButtonLicao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  linkButtonLicaoText: {
+    color: '#2563eb',
+    fontSize: 13,
     fontWeight: '600',
   },
   badgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingVertical: 3,
+    borderRadius: 10,
     gap: 4,
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: 'bold',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
-  },
-  progressBarBackground: {
-    flex: 1,
-    height: 8,
-    backgroundColor: 'rgba(156, 163, 175, 0.3)',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressPercentText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    width: 36,
-    textAlign: 'right',
-  },
-  freqSubtext: {
-    fontSize: 12,
-    marginTop: 4,
+    fontWeight: '700',
   },
   miniCardFreq: {
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     width: '100%',
     borderWidth: 1,
-    marginVertical: 8,
-    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   miniCardRow: {
     flexDirection: 'row',
@@ -906,49 +935,69 @@ const styles = StyleSheet.create({
   miniCardInfoLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+  },
+  statIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniCardLabel: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   miniCardTitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  miniCardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   expandedFreqContainer: {
-    marginTop: 4,
+    marginTop: 12,
   },
   freqMetricContainer: {
-    marginVertical: 2,
+    gap: 6,
   },
   freqHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+  },
+  freqLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  freqValueText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  progressBarBackground: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  freqSubtext: {
+    fontSize: 11,
   },
   divider: {
     height: 1,
-    marginVertical: 10,
-    opacity: 0.5,
+    marginVertical: 12,
+    opacity: 0.6,
   },
-
-  listaAlunos: {
-    marginTop: 4,
+  perfilContainer: { 
+    flex: 1 
   },
-  alunoLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  alunoNome: {
-    flex: 1,
-    fontSize: 14,
-  },
-  alunoJust: {
-    fontSize: 11,
-    maxWidth: 110,
-  },
-
-  // Estilos da Modal de Perfil
-  perfilContainer: { flex: 1 },
   perfilTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -956,91 +1005,139 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  perfilBackBtn: { width: 40, height: 40, justifyContent: 'center' },
-  perfilTopTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  perfilContent: { padding: 20, paddingBottom: 60 },
-
-  perfilCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 22,
-    marginBottom: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+  perfilBackBtn: { 
+    width: 40, 
+    height: 40, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
-  perfilCardTopo: { flexDirection: 'row', alignItems: 'center' },
+  perfilTopTitle: { 
+    fontSize: 17, 
+    fontWeight: '700' 
+  },
+  perfilContent: { 
+    padding: 20, 
+    gap: 16,
+    paddingBottom: 40 
+  },
+  perfilCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  perfilCardTopo: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
   perfilAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#2563EB',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  perfilAvatarTexto: { color: '#FFF', fontSize: 38, fontWeight: 'bold' },
-  perfilNome: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
+  perfilAvatarTexto: { 
+    color: '#FFF', 
+    fontSize: 26, 
+    fontWeight: 'bold' 
+  },
+  perfilNome: { 
+    fontSize: 18, 
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
   badgePerfilClasse: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 6,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginTop: 6,
   },
-  badgePerfilClasseTexto: { color: '#93C5FD', fontWeight: 'bold', fontSize: 13 },
-
+  badgePerfilClasseTexto: { 
+    color: '#2563EB', 
+    fontWeight: '600', 
+    fontSize: 12 
+  },
   perfilSecao: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-    marginTop: 18,
-    marginBottom: 10,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: 8,
+    marginBottom: -4,
     marginLeft: 4,
   },
   perfilBox: {
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   linhaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   iconeBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  infoLabel: { fontSize: 12 },
-  infoValor: { fontSize: 16, fontWeight: 'bold', marginTop: 2 },
-  divisor: { height: 1 },
-
-  formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  infoLabel: { 
+    fontSize: 11,
+    fontWeight: '500'
+  },
+  infoValor: { 
+    fontSize: 15, 
+    fontWeight: '600', 
+    marginTop: 1 
+  },
+  formSenha: { 
+    paddingHorizontal: 16, 
+    paddingBottom: 16, 
+    gap: 12 
+  },
   inputSenha: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
   },
   btnSalvarSenha: {
     backgroundColor: '#2563EB',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  btnSalvarSenhaTexto: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  btnSalvarSenhaTexto: { 
+    color: '#FFF', 
+    fontWeight: '700', 
+    fontSize: 14 
+  },
 });

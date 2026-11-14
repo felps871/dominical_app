@@ -18,19 +18,13 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../supabase';
 
-// --- FUNÇÕES DE FORMATACÃO E LÓGICA ---
+// --- FUNÇÕES DE FORMATAÇÃO E LÓGICA ---
 function formatDateToBR(date) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
-}
-
-function convertBRToISO(dateBR) {
-  const [day, month, year] = dateBR.split('/');
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
 function generateQuarterSchedule({ startDateInput, totalLessons = 13, teachersByClass }) {
@@ -115,7 +109,6 @@ export default function EscalaProfessores() {
 
   const [startDateInput, setStartDateInput] = useState('04/10/2026');
   const [totalLessons, setTotalLessons] = useState('13');
-  const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [generatedSchedule, setGeneratedSchedule] = useState([]);
 
@@ -170,35 +163,6 @@ export default function EscalaProfessores() {
     }
   };
 
-  // Salvar no Banco de Dados
-  const handleSaveToSupabase = async () => {
-    if (generatedSchedule.length === 0) {
-      Alert.alert('Aviso', 'Gere uma escala primeiro.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const recordsToInsert = generatedSchedule.map((item) => ({
-        classe: item.classe,
-        data: convertBRToISO(item.dataBR),
-        titulo: `Lição ${item.licaoNum}`,
-        professor: item.professor,
-      }));
-
-      const { error } = await supabase.from('licoes').insert(recordsToInsert);
-
-      if (error) throw error;
-
-      Alert.alert('Publicado!', 'A escala foi salva e já está visível para os professores e alunos.');
-      router.back();
-    } catch (err) {
-      Alert.alert('Erro ao Salvar', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Monta as linhas agrupadas por lição para a tabela
   const classesList = Object.keys(teachersByClass);
   const lessonsCount = parseInt(totalLessons, 10) || 13;
@@ -235,7 +199,7 @@ export default function EscalaProfessores() {
           <Ionicons name="arrow-back" size={24} color={theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A')} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
-          Escala Automática 
+          Escala Automática
         </Text>
 
         <TouchableOpacity
@@ -257,7 +221,7 @@ export default function EscalaProfessores() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Painel de Parâmetros com Campos Ampliados */}
+        {/* Painel de Parâmetros */}
         <View style={[
           styles.card,
           {
@@ -341,7 +305,7 @@ export default function EscalaProfessores() {
           </TouchableOpacity>
         </View>
 
-        {/* Pré-visualização Privada */}
+        {/* Pré-visualização Local */}
         {generatedSchedule.length > 0 && (
           <View style={styles.previewSection}>
             <Text style={[styles.previewTitle, { color: theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A') }]}>
@@ -389,21 +353,6 @@ export default function EscalaProfessores() {
                   </>
                 )}
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.saveBtn, loading && { opacity: 0.7 }]}
-                onPress={handleSaveToSupabase}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <>
-                    <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
-                    <Text style={styles.btnText}>Publicar para Todos no App</Text>
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -426,12 +375,10 @@ const styles = StyleSheet.create({
   themeBtn: { padding: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16 },
   
-  // Card do Formulário
   card: { borderRadius: 16, padding: 18, borderWidth: 1, marginBottom: 20, elevation: 1 },
   cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   sectionSubtitle: { fontSize: 15, fontWeight: 'bold', marginTop: 16, marginBottom: 12 },
   
-  // AUMENTADO O TAMANHO DOS INPUTS E ESPAÇAMENTOS
   inputGroup: { marginBottom: 14 },
   label: { fontSize: 14, marginBottom: 6, fontWeight: '600' },
   input: { 
@@ -450,14 +397,11 @@ const styles = StyleSheet.create({
   generateBtn: { backgroundColor: '#6366F1', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10, marginTop: 16 },
   btnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 14 },
   
-  // Estilos da Pré-visualização
   previewSection: { marginTop: 10, marginBottom: 30 },
   previewTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
   actionsContainer: { gap: 12, marginTop: 16 },
   exportBtn: { backgroundColor: '#D97706', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10 },
-  saveBtn: { backgroundColor: '#16A34A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 10 },
 
-  // Estilos da Imagem JPG Exportada
   imageCardContainer: {
     backgroundColor: '#0F172A',
     padding: 20,

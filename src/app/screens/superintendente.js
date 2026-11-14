@@ -101,7 +101,6 @@ export default function Home() {
     setConfirmarSenha('');
   };
 
-  // Abre/fecha o formulário de troca de senha (sem e-mail)
   const alterarSenha = () => setSenhaVisivel(!senhaVisivel);
 
   const salvarNovaSenha = async () => {
@@ -137,36 +136,34 @@ export default function Home() {
         onPress: async () => {
           await supabase.auth.signOut();
           fecharPerfil();
-          router.replace('/'); // Ajuste para a sua rota de login
+          router.replace('/');
         },
       },
     ]);
   };
 
-  // Cores do perfil (seguindo o tema do app)
   const corFundo = theme.background || (isDarkMode ? '#0F172A' : '#F8FAFC');
   const corCard = theme.card || (isDarkMode ? '#1E293B' : '#FFFFFF');
   const corBorda = theme.border || (isDarkMode ? '#334155' : '#E2E8F0');
   const corTexto = theme.text || (isDarkMode ? '#F8FAFC' : '#0F172A');
   const corSub = theme.subtext || (isDarkMode ? '#94A3B8' : '#64748B');
-  const corIconeBox = isDarkMode ? '#334155' : '#E2E8F0';
+  const corIconeBox = isDarkMode ? '#334155' : '#F1F5F9';
 
   const cardModulo = [
     styles.gridCard,
     {
-      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : theme.card,
-      borderColor: theme.border,
-      borderWidth: isDarkMode ? 0 : 1,
+      backgroundColor: corCard,
+      borderColor: corBorda,
     },
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: corFundo }]}>
       <StatusBar barStyle={theme.statusBar} backgroundColor="transparent" translucent />
 
-      {/* Header */}
+      {/* Header Modernizado */}
       <View style={[styles.header, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
-        <View>
+        <View style={styles.headerTextContainer}>
           <Text style={styles.headerSubtitle}>
             {getSaudacao()}, {nomeUsuario}!
           </Text>
@@ -183,27 +180,25 @@ export default function Home() {
           >
             <Ionicons
               name={isDarkMode ? 'sunny' : 'moon'}
-              size={20}
-              color={isDarkMode ? '#F59E0B' : '#6366F1'}
+              size={18}
+              color={isDarkMode ? '#F59E0B' : '#FFF'}
             />
           </TouchableOpacity>
 
-          {/* Avatar de Perfil */}
-          <TouchableOpacity onPress={abrirPerfil} style={styles.avatarButton}>
+          <TouchableOpacity onPress={abrirPerfil} style={styles.avatarButton} activeOpacity={0.8}>
             <Text style={styles.avatarButtonText}>{inicial}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Banner de Lançamento do Domingo */}
         <View
           style={[
             styles.mainCard,
             {
               backgroundColor: isDarkMode ? '#1E293B' : '#0F172A',
-              borderColor: theme.border,
-              borderWidth: isDarkMode ? 0 : 1,
+              borderColor: corBorda,
             },
           ]}
         >
@@ -214,71 +209,70 @@ export default function Home() {
           <Text style={styles.mainCardSub}>
             Registre a frequência e o controle de presença dos alunos da classe.
           </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/chamada')}>
-            <Ionicons name="checkmark-done-circle-outline" size={20} color="#FFF" />
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/chamada')} activeOpacity={0.85}>
+            <Ionicons name="checkmark-done-circle-outline" size={18} color="#FFF" />
             <Text style={styles.primaryBtnText}>Iniciar Chamada</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Painel da EBD</Text>
+        <Text style={[styles.sectionTitle, { color: corTexto }]}>Painel da EBD</Text>
 
         {/* Grelha de Módulos EBD */}
         <View style={styles.gridContainer}>
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/escala-professores')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#E0E7FF' }]}>
-              <Ionicons name="calendar-outline" size={24} color="#4F46E5" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/escala-professores')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#E0E7FF' }]}>
+              <Ionicons name="calendar-outline" size={22} color={isDarkMode ? '#818CF8' : '#4F46E5'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Escala Trimestral</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Gerar rodízio automático</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Escala Trimestral</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Gerar rodízio automático</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/cadastrar-licao')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="book-outline" size={24} color="#7C3AED" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/cadastrar-licao')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(124, 58, 237, 0.2)' : '#F3E8FF' }]}>
+              <Ionicons name="book-outline" size={22} color={isDarkMode ? '#A78BFA' : '#7C3AED'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Cadastrar Lição</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Agenda e professores</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Cadastrar Lição</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Agenda e professores</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/assiduidade')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="trophy-outline" size={24} color="#D97706" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/assiduidade')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
+              <Ionicons name="trophy-outline" size={22} color={isDarkMode ? '#FBBF24' : '#D97706'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Assiduidade</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Ranking sem faltas</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Assiduidade</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Ranking sem faltas</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/classes')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="school-outline" size={24} color="#2563EB" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/classes')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.2)' : '#DBEAFE' }]}>
+              <Ionicons name="school-outline" size={22} color={isDarkMode ? '#60A5FA' : '#2563EB'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Classes</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Gestão de turmas</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Classes</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Gestão de turmas</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/ausentes')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="alert-circle-outline" size={24} color="#DC2626" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/ausentes')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(220, 38, 38, 0.2)' : '#FEE2E2' }]}>
+              <Ionicons name="alert-circle-outline" size={22} color={isDarkMode ? '#F87171' : '#DC2626'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Ausentes</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Controle de visitas</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Ausentes</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Controle de visitas</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/relatorios')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="document-text-outline" size={24} color="#16A34A" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/relatorios')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(22, 163, 74, 0.2)' : '#DCFCE7' }]}>
+              <Ionicons name="document-text-outline" size={22} color={isDarkMode ? '#4ADE80' : '#16A34A'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Relatórios</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Emissão de dados</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Relatórios</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Emissão de dados</Text>
           </TouchableOpacity>
 
-          {/* NOVO MÓDULO: FINANCEIRO */}
-          <TouchableOpacity style={cardModulo} onPress={() => router.push('/financeiro')}>
-            <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="cash-outline" size={24} color="#0284C7" />
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/financeiro')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(2, 132, 199, 0.2)' : '#E0F2FE' }]}>
+              <Ionicons name="cash-outline" size={22} color={isDarkMode ? '#38BDF8' : '#0284C7'} />
             </View>
-            <Text style={[styles.gridTitle, { color: theme.text }]}>Financeiro</Text>
-            <Text style={[styles.gridSub, { color: theme.subtext }]}>Controle de entrada e saída</Text>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Financeiro</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Controle de caixa</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -291,7 +285,6 @@ export default function Home() {
         statusBarTranslucent
       >
         <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
-          {/* Barra superior */}
           <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
             <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
               <Ionicons name="arrow-back" size={24} color="#FFF" />
@@ -303,14 +296,15 @@ export default function Home() {
           <ScrollView
             contentContainerStyle={styles.perfilContent}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             {/* Cartão principal: avatar, nome e classe */}
             <View
               style={[
                 styles.perfilCard,
                 {
-                  backgroundColor: isDarkMode ? '#1E293B' : '#0F172A',
-                  borderColor: isDarkMode ? '#334155' : '#1E293B',
+                  backgroundColor: corCard,
+                  borderColor: corBorda,
                 },
               ]}
             >
@@ -320,11 +314,11 @@ export default function Home() {
                 </View>
 
                 <View style={{ flex: 1, marginLeft: 16 }}>
-                  <Text style={styles.perfilNome} numberOfLines={2}>
+                  <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
                     {nomeUsuario}
                   </Text>
                   <View style={styles.badgeClasse}>
-                    <Ionicons name="school-outline" size={14} color="#93C5FD" />
+                    <Ionicons name="school-outline" size={14} color="#2563EB" />
                     <Text style={styles.badgeClasseTexto}>{classeUsuario}</Text>
                   </View>
                 </View>
@@ -340,7 +334,7 @@ export default function Home() {
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
               <View style={styles.linhaInfo}>
                 <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="mail-outline" size={22} color="#2563EB" />
+                  <Ionicons name="mail-outline" size={20} color="#2563EB" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: corSub }]}>E-mail</Text>
@@ -354,7 +348,7 @@ export default function Home() {
 
               <View style={styles.linhaInfo}>
                 <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="shield-outline" size={22} color="#2563EB" />
+                  <Ionicons name="shield-outline" size={20} color="#2563EB" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: corSub }]}>Função</Text>
@@ -366,16 +360,16 @@ export default function Home() {
             </View>
 
             {/* CONTA */}
-            <Text style={[styles.perfilSecao, { color: corSub }]}>CONTA</Text>
+            <Text style={[styles.perfilSecao, { color: corSub }]}>SEGURANÇA E CONTA</Text>
             <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha}>
+              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
                 <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="key-outline" size={22} color="#2563EB" />
+                  <Ionicons name="key-outline" size={20} color="#2563EB" />
                 </View>
                 <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
                 <Ionicons
                   name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
-                  size={20}
+                  size={18}
                   color={corSub}
                 />
               </TouchableOpacity>
@@ -389,7 +383,7 @@ export default function Home() {
                     placeholderTextColor={corSub}
                     secureTextEntry
                     autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
                   />
                   <TextInput
                     value={confirmarSenha}
@@ -398,17 +392,18 @@ export default function Home() {
                     placeholderTextColor={corSub}
                     secureTextEntry
                     autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda }]}
+                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
                   />
                   <TouchableOpacity
                     style={styles.btnSalvarSenha}
                     onPress={salvarNovaSenha}
                     disabled={salvandoSenha}
+                    activeOpacity={0.8}
                   >
                     {salvandoSenha ? (
-                      <ActivityIndicator color="#FFF" />
+                      <ActivityIndicator color="#FFF" size="small" />
                     ) : (
-                      <Text style={styles.btnSalvarSenhaTexto}>Salvar nova senha</Text>
+                      <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -416,12 +411,12 @@ export default function Home() {
 
               <View style={[styles.divisor, { backgroundColor: corBorda }]} />
 
-              <TouchableOpacity style={styles.linhaInfo} onPress={sair}>
+              <TouchableOpacity style={styles.linhaInfo} onPress={sair} activeOpacity={0.7}>
                 <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
                 </View>
-                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair</Text>
-                <Ionicons name="chevron-forward" size={20} color={corSub} />
+                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
+                <Ionicons name="chevron-forward" size={18} color={corSub} />
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -434,20 +429,23 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerSubtitle: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
-  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  headerTextContainer: { flex: 1 },
+  headerSubtitle: { color: '#94A3B8', fontSize: 12, fontWeight: '600', letterSpacing: -0.2 },
+  headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   themeButton: {
-    padding: 8,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -461,69 +459,80 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  avatarButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  avatarButtonText: { color: '#FFF', fontSize: 15, fontWeight: 'bold' },
   content: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 20,
+    paddingBottom: 40,
+    gap: 16,
   },
   mainCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 24,
-    elevation: 3,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   mainCardBadge: {
     backgroundColor: '#16A34A',
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
     marginBottom: 8,
   },
-  mainCardBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  mainCardTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-  mainCardSub: { color: '#94A3B8', fontSize: 13, marginBottom: 16 },
+  mainCardBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  mainCardTitle: { color: '#FFF', fontSize: 18, fontWeight: '700', marginBottom: 4, letterSpacing: -0.2 },
+  mainCardSub: { color: '#94A3B8', fontSize: 13, marginBottom: 16, lineHeight: 18 },
   primaryBtn: {
     backgroundColor: '#2563EB',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 12,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  primaryBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8, fontSize: 14 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+  primaryBtnText: { color: '#FFF', fontWeight: '700', marginLeft: 8, fontSize: 14 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 8, letterSpacing: -0.3 },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 20,
   },
   gridCard: {
     width: '48%',
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
+    borderRadius: 16,
+    marginBottom: 14,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  gridTitle: { fontSize: 14, fontWeight: 'bold' },
+  gridTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
   gridSub: { fontSize: 11, marginTop: 2 },
 
   // ---------- Estilos do Perfil ----------
@@ -535,92 +544,102 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  perfilBackBtn: { width: 40, height: 40, justifyContent: 'center' },
-  perfilTopTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  perfilContent: { padding: 20, paddingBottom: 60 },
+  perfilBackBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  perfilTopTitle: { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  perfilContent: { padding: 20, gap: 16, paddingBottom: 40 },
 
   perfilCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 22,
-    marginBottom: 12,
-    elevation: 3,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   perfilCardTopo: { flexDirection: 'row', alignItems: 'center' },
   perfilAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#2563EB',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  perfilAvatarTexto: { color: '#FFF', fontSize: 38, fontWeight: 'bold' },
-  perfilNome: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
+  perfilAvatarTexto: { color: '#FFF', fontSize: 26, fontWeight: 'bold' },
+  perfilNome: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
   badgeClasse: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 6,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginTop: 6,
   },
-  badgeClasseTexto: { color: '#93C5FD', fontWeight: 'bold', fontSize: 13 },
+  badgeClasseTexto: { color: '#2563EB', fontWeight: '600', fontSize: 12 },
 
   perfilSecao: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-    marginTop: 18,
-    marginBottom: 10,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: 8,
+    marginBottom: -4,
     marginLeft: 4,
   },
   perfilBox: {
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   linhaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   iconeBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  infoLabel: { fontSize: 12 },
-  infoValor: { fontSize: 16, fontWeight: 'bold', marginTop: 2 },
+  infoLabel: { fontSize: 11, fontWeight: '500' },
+  infoValor: { fontSize: 15, fontWeight: '600', marginTop: 1 },
   divisor: { height: 1 },
 
   // ---------- Formulário de troca de senha ----------
-  formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   inputSenha: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
   },
   btnSalvarSenha: {
     backgroundColor: '#2563EB',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  btnSalvarSenhaTexto: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  btnSalvarSenhaTexto: { color: '#FFF', fontWeight: '700', fontSize: 14 },
 });
