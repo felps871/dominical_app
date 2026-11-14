@@ -271,6 +271,15 @@ export default function Home() {
             <Text style={[styles.gridTitle, { color: theme.text }]}>Relatórios</Text>
             <Text style={[styles.gridSub, { color: theme.subtext }]}>Emissão de dados</Text>
           </TouchableOpacity>
+
+          {/* NOVO MÓDULO: FINANCEIRO */}
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/financeiro')}>
+            <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="cash-outline" size={24} color="#0284C7" />
+            </View>
+            <Text style={[styles.gridTitle, { color: theme.text }]}>Financeiro</Text>
+            <Text style={[styles.gridSub, { color: theme.subtext }]}>Controle de entrada e saída</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
