@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
-import { cadastrarUsuario } from '../services/Authservice'; // Certifique-se que aponta para o serviço do Supabase
+import { cadastrarUsuario, verificarAlunoPorNome } from '../services/Authservice'; // Serviço integrado com validação
 
 const ROTA_LOGIN = '/';
 
@@ -300,6 +300,7 @@ export default function Cadastro() {
     Keyboard.dismiss();
     setAviso(null);
 
+    // 1. Validação local básica de inputs
     const novosErros = {
       nome: validarNome(nome),
       email: validarEmail(email),
@@ -314,12 +315,32 @@ export default function Cadastro() {
 
     setCarregando(true);
     try {
+      let alunoId = null;
+
+      // 2. Validação remota na tabela de alunos se o perfil for "aluno"
+      if (tipoUsuario === 'aluno') {
+        const verificacao = await verificarAlunoPorNome(nome);
+        
+        if (verificacao.status !== 'sucesso') {
+          setErros((atual) => ({ 
+            ...atual, 
+            [verificacao.campo || 'nome']: verificacao.mensagem 
+          }));
+          setCarregando(false);
+          return;
+        }
+
+        alunoId = verificacao.aluno.id;
+      }
+
+      // 3. Execução do cadastro no Supabase Auth com tratamento avançado
       const resultado = await cadastrarUsuario({
         nome: nome.trim(),
         email: email.trim().toLowerCase(),
         senha,
         tipoUsuario,
         classe: tipoUsuario === 'aluno' ? classe : null,
+        alunoId,
       });
 
       if (resultado.status === 'sucesso') {
@@ -330,14 +351,18 @@ export default function Cadastro() {
         return;
       }
 
+      // 4. Tratamento de redirecionamento de erros específicos por campo
       if (resultado.campo && resultado.campo in erros) {
         setErros((atual) => ({ ...atual, [resultado.campo]: resultado.mensagem }));
       } else {
         setAviso({ tipo: 'erro', texto: resultado.mensagem });
       }
     } catch (e) {
-      console.warn('Erro inesperado no cadastro:', e?.name);
-      setAviso({ tipo: 'erro', texto: 'Não foi possível concluir o cadastro. Tente novamente.' });
+      console.warn('Exceção crítica no cadastro:', e);
+      setAviso({ 
+        tipo: 'erro', 
+        texto: 'Não foi possível concluir o cadastro. Verifique sua conexão e tente novamente.' 
+      });
     } finally {
       setCarregando(false);
     }
