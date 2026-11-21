@@ -274,6 +274,15 @@ export default function Home() {
             <Text style={[styles.gridTitle, { color: corTexto }]}>Financeiro</Text>
             <Text style={[styles.gridSub, { color: corSub }]}>Controle de caixa</Text>
           </TouchableOpacity>
+
+          {/* NOVO: Leitura Semanal */}
+          <TouchableOpacity style={cardModulo} onPress={() => router.push('/leitura-semanal')} activeOpacity={0.8}>
+            <View style={[styles.iconCircle, { backgroundColor: isDarkMode ? 'rgba(13, 148, 136, 0.2)' : '#CCFBF1' }]}>
+              <Ionicons name="reader-outline" size={22} color={isDarkMode ? '#2DD4BF' : '#0D9488'} />
+            </View>
+            <Text style={[styles.gridTitle, { color: corTexto }]}>Leitura Semanal</Text>
+            <Text style={[styles.gridSub, { color: corSub }]}>Versículos da semana</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

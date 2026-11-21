@@ -19,6 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../supabase';
 
+// Versão da Bíblia usada no link "ler o texto" da Leitura da Semana.
+// Se o texto não abrir, troque por outra versão em português (ex.: 'NVI-PT', 'NAA').
+const VERSAO_BIBLIA = 'ARC';
+
+const NOMES_DIA = ['', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
 // Converte a string "YYYY-MM-DD" do banco para "DD/MM/AAAA"
 const formatarDataBR = (dataString) => {
   if (!dataString) return '';
@@ -29,6 +35,15 @@ const formatarDataBR = (dataString) => {
   return `${dia}/${mes}/${ano}`;
 };
 
+// "YYYY-MM-DD" -> Date no fuso local (evita erro de um dia por causa do UTC)
+const dataLocal = (iso) => {
+  const [a, m, d] = iso.split('T')[0].split('-').map(Number);
+  return new Date(a, m - 1, d);
+};
+
+const formatarDM = (d) =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
 export default function AlunoScreen() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -37,6 +52,12 @@ export default function AlunoScreen() {
   const [loading, setLoading] = useState(true);
   const [perfilAluno, setPerfilAluno] = useState(null);
   const [mostrarDetalhesFreq, setMostrarDetalhesFreq] = useState(false);
+
+  // Leitura da semana
+  const [userId, setUserId] = useState(null);
+  const [leitura, setLeitura] = useState(null);
+  const [leituraLoading, setLeituraLoading] = useState(true);
+  const [lidos, setLidos] = useState(new Set()); // ids de leitura_dias já lidos
 
   // Dados do perfil (tabela "users")
   const [perfilVisivel, setPerfilVisivel] = useState(false);
@@ -81,8 +102,11 @@ export default function AlunoScreen() {
 
       const { data: { user } } = await supabase.auth.getUser();
       let alunoEncontrado = null;
+      let classeDoUsuario = null;
 
       if (user) {
+        setUserId(user.id);
+
         const { data: userProfile, error: errorUsers } = await supabase
           .from('users')
           .select('nome, email, classe')
@@ -90,6 +114,8 @@ export default function AlunoScreen() {
           .maybeSingle();
 
         if (errorUsers) console.log('Erro ao buscar users:', errorUsers.message);
+
+        classeDoUsuario = userProfile?.classe || null;
 
         setPerfilUsuario({
           nome: userProfile?.nome || '',
@@ -136,8 +162,12 @@ export default function AlunoScreen() {
         await fetchLicoes(null);
       }
 
+      // Leitura da semana (usa a classe do aluno, ou a do cadastro de usuário)
+      await fetchLeitura(alunoEncontrado?.classe || classeDoUsuario, user?.id);
+
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
+      setLeituraLoading(false);
     } finally {
       setLoading(false);
     }
@@ -164,6 +194,114 @@ export default function AlunoScreen() {
     } catch (err) {
       console.error('Erro ao buscar lições:', err);
     }
+  };
+
+  // ---------- LEITURA DA SEMANA ----------
+  const fetchLeitura = async (classeAluno, uid) => {
+    try {
+      setLeituraLoading(true);
+
+      let query = supabase
+        .from('leituras_semanais')
+        .select('id, classe, tema, mensagem, semana_inicio, leitura_dias(id, dia_semana, referencia, titulo)')
+        .eq('status', 'publicada')
+        .lte('publicar_em', new Date().toISOString())
+        .order('semana_inicio', { ascending: false })
+        .limit(5);
+
+      query = classeAluno
+        ? query.or(`classe.eq."${classeAluno}",classe.is.null`)
+        : query.is('classe', null);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        setLeitura(null);
+        setLidos(new Set());
+        return;
+      }
+
+      // Pega a semana mais recente; se houver uma da classe e outra geral, prefere a da classe
+      const semanaMaisRecente = data[0].semana_inicio;
+      const daSemana = data.filter((l) => l.semana_inicio === semanaMaisRecente);
+      const escolhida = daSemana.find((l) => l.classe === classeAluno) || daSemana[0];
+
+      // Leitura de semana que já terminou (passou o domingo): não mostra
+      const fim = dataLocal(escolhida.semana_inicio);
+      fim.setDate(fim.getDate() + 6);
+      const hojeZero = new Date();
+      hojeZero.setHours(0, 0, 0, 0);
+      if (hojeZero > fim) {
+        setLeitura(null);
+        setLidos(new Set());
+        return;
+      }
+
+      const dias = [...(escolhida.leitura_dias || [])].sort((a, b) => a.dia_semana - b.dia_semana);
+      setLeitura({ ...escolhida, leitura_dias: dias });
+
+      // O que este aluno já leu
+      if (uid && dias.length > 0) {
+        const { data: prog, error: errProg } = await supabase
+          .from('leitura_progresso')
+          .select('leitura_dia_id')
+          .eq('user_id', uid)
+          .in('leitura_dia_id', dias.map((d) => d.id));
+        if (errProg) console.log('Erro ao buscar progresso:', errProg.message);
+        setLidos(new Set((prog || []).map((p) => p.leitura_dia_id)));
+      } else {
+        setLidos(new Set());
+      }
+    } catch (err) {
+      console.error('Erro ao buscar leitura da semana:', err.message || err);
+    } finally {
+      setLeituraLoading(false);
+    }
+  };
+
+  const alternarLido = async (dia) => {
+    if (!userId) return;
+    const jaLido = lidos.has(dia.id);
+
+    // Atualiza a tela na hora (otimista)
+    setLidos((prev) => {
+      const novo = new Set(prev);
+      if (jaLido) novo.delete(dia.id);
+      else novo.add(dia.id);
+      return novo;
+    });
+
+    const { error } = jaLido
+      ? await supabase
+          .from('leitura_progresso')
+          .delete()
+          .eq('user_id', userId)
+          .eq('leitura_dia_id', dia.id)
+      : await supabase
+          .from('leitura_progresso')
+          .insert({ user_id: userId, leitura_dia_id: dia.id });
+
+    // 23505 = já estava marcado; tudo certo
+    if (error && error.code !== '23505') {
+      // Desfaz a mudança na tela
+      setLidos((prev) => {
+        const novo = new Set(prev);
+        if (jaLido) novo.add(dia.id);
+        else novo.delete(dia.id);
+        return novo;
+      });
+      Alert.alert('Erro', 'Não foi possível salvar. Verifique sua conexão e tente de novo.');
+    }
+  };
+
+  const abrirVersiculo = (referencia) => {
+    // "Sl 133.1" -> "Sl 133:1"
+    const busca = referencia.replace(/(\d)\.(\d)/g, '$1:$2');
+    const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(busca)}&version=${VERSAO_BIBLIA}`;
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Erro', 'Não foi possível abrir o texto bíblico.')
+    );
   };
 
   const fetchFrequencia = async (alunoIdNumerico) => {
@@ -290,6 +428,24 @@ export default function AlunoScreen() {
   const badgeMes = getBadgeAssiduidade(frequencia.mes);
   const badgeAno = getBadgeAssiduidade(frequencia.ano);
 
+  // ---------- Valores da Leitura da Semana ----------
+  const corLeitura = isDarkMode ? '#2DD4BF' : '#0D9488';
+  const hojeDow = new Date().getDay(); // 1=seg ... 6=sáb (0=dom não tem leitura)
+  const totalDias = leitura?.leitura_dias?.length || 0;
+  const totalLidos = leitura ? leitura.leitura_dias.filter((d) => lidos.has(d.id)).length : 0;
+  const pctLeitura = totalDias > 0 ? Math.round((totalLidos / totalDias) * 100) : 0;
+  let periodoLeitura = '';
+  let domingoLeitura = '';
+  if (leitura) {
+    const inicio = dataLocal(leitura.semana_inicio);
+    const sab = new Date(inicio);
+    sab.setDate(sab.getDate() + 5);
+    const dom = new Date(inicio);
+    dom.setDate(dom.getDate() + 6);
+    periodoLeitura = `${formatarDM(inicio)} a ${formatarDM(sab)}`;
+    domingoLeitura = formatarDM(dom);
+  }
+
   return (
     <LinearGradient colors={gradientColors} style={styles.background}>
       <StatusBar barStyle={theme.statusBar} backgroundColor="transparent" translucent />
@@ -335,6 +491,124 @@ export default function AlunoScreen() {
                 {classePerfil}
               </Text>
             </View>
+          </View>
+
+          {/* ================= 0. LEITURA DA SEMANA ================= */}
+          <View style={styles.secao}>
+            <Text style={[styles.h2, { color: corTexto, marginBottom: 4 }]}>Leitura da Semana</Text>
+
+            {leituraLoading ? (
+              <View style={[styles.loadingContainer, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <ActivityIndicator size="small" color={corLeitura} />
+                <Text style={[styles.loadingText, { color: corSub }]}>Buscando a leitura...</Text>
+              </View>
+            ) : !leitura ? (
+              <View style={[styles.cardInfo, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <Text style={[styles.cardTitulo, { color: corTexto }]}>Nenhuma leitura esta semana</Text>
+                <Text style={[styles.cardSub, { color: corSub }]}>
+                  O Superintendente ainda não publicou a leitura desta semana. Volte mais tarde.
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.cardInfo, { backgroundColor: corCard, borderColor: corBorda }]}>
+                {leitura.tema ? (
+                  <Text style={[styles.cardTitulo, { color: corTexto, marginBottom: 2 }]}>{leitura.tema}</Text>
+                ) : null}
+                <Text style={[styles.cardSub, { color: corSub }]}>
+                  {periodoLeitura}. Chegue preparado para a lição de domingo, {domingoLeitura}.
+                </Text>
+
+                {leitura.mensagem ? (
+                  <View
+                    style={[
+                      styles.mensagemBox,
+                      { backgroundColor: isDarkMode ? 'rgba(13,148,136,0.15)' : '#F0FDFA', borderColor: corLeitura },
+                    ]}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color={corLeitura} />
+                    <Text style={[styles.mensagemTexto, { color: corTexto }]}>{leitura.mensagem}</Text>
+                  </View>
+                ) : null}
+
+                {/* Contador e barra de progresso */}
+                <View style={styles.leituraProgressoTopo}>
+                  <Text style={[styles.freqLabel, { color: corTexto }]}>
+                    {totalLidos} de {totalDias} lidos
+                  </Text>
+                  <Text style={[styles.freqValueText, { color: corLeitura }]}>{pctLeitura}%</Text>
+                </View>
+                <View style={styles.progressBarBackground}>
+                  <View
+                    style={[styles.progressBarFill, { width: `${pctLeitura}%`, backgroundColor: corLeitura }]}
+                  />
+                </View>
+
+                {/* Os dias da semana */}
+                <View style={{ marginTop: 14, gap: 8 }}>
+                  {leitura.leitura_dias.map((dia) => {
+                    const lido = lidos.has(dia.id);
+                    const ehHoje = dia.dia_semana === hojeDow;
+                    return (
+                      <View
+                        key={dia.id}
+                        style={[
+                          styles.diaRow,
+                          {
+                            borderColor: ehHoje ? corLeitura : corBorda,
+                            backgroundColor: ehHoje
+                              ? isDarkMode
+                                ? 'rgba(13,148,136,0.12)'
+                                : '#F0FDFA'
+                              : 'transparent',
+                          },
+                        ]}
+                      >
+                        <TouchableOpacity
+                          onPress={() => alternarLido(dia)}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          style={[
+                            styles.checkCircle,
+                            lido
+                              ? { backgroundColor: '#10B981', borderColor: '#10B981' }
+                              : { borderColor: corBorda },
+                          ]}
+                        >
+                          {lido && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={{ flex: 1 }}
+                          onPress={() => abrirVersiculo(dia.referencia)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.diaNomeLinha}>
+                            <Text style={[styles.diaNome, { color: corSub }]}>{NOMES_DIA[dia.dia_semana]}</Text>
+                            {ehHoje && (
+                              <View style={[styles.hojeBadge, { backgroundColor: corLeitura }]}>
+                                <Text style={styles.hojeBadgeTexto}>Hoje</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.diaReferencia, { color: corTexto }]}>{dia.referencia}</Text>
+                          <Text style={[styles.diaTitulo, { color: corSub }]}>{dia.titulo}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => abrirVersiculo(dia.referencia)} activeOpacity={0.7}>
+                          <Ionicons name="book-outline" size={20} color={corLeitura} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {totalDias > 0 && totalLidos === totalDias && (
+                  <Text style={[styles.leituraConcluida, { color: '#10B981' }]}>
+                    Você concluiu a leitura da semana! 🎉
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           {/* ================= 1. CARD DE FREQUÊNCIA ================= */}
@@ -735,6 +1009,54 @@ const styles = StyleSheet.create({
   secao: { width: '100%', gap: 8 },
   h2: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
 
+  // ---------- Leitura da Semana ----------
+  mensagemBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  mensagemTexto: { flex: 1, fontSize: 13, lineHeight: 18 },
+  leituraProgressoTopo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  diaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  checkCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  diaNomeLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  diaNome: { fontSize: 12, fontWeight: '600' },
+  hojeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  hojeBadgeTexto: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  diaReferencia: { fontSize: 15, fontWeight: '700', marginTop: 1 },
+  diaTitulo: { fontSize: 13, marginTop: 1 },
+  leituraConcluida: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 14,
+  },
+
   revistaCardBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -986,6 +1308,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 11, fontWeight: '500' },
   infoValor: { fontSize: 15, fontWeight: '600', marginTop: 1 },
+  divisor: { height: 1 },
   formSenha: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   inputSenha: {
     borderWidth: 1,
