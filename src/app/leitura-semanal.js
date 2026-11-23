@@ -21,10 +21,28 @@ import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../supabase';
 
 const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const TURMAS = ['Adultos', 'Jovens', 'Juniores', 'Crianças'];
 const TIPO_ALUNO = 'aluno'; // valor de users.tipo_usuario que representa o aluno
 
 const diaVazio = () => ({ referencia: '', titulo: '' });
 const diasVazios = () => DIAS.map(diaVazio);
+
+const estadoTurmaVazio = () => ({
+  leituraId: null,
+  status: null, // 'rascunho' | 'publicada' | null
+  tema: '',
+  mensagem: '',
+  dias: diasVazios(),
+  leituraDias: [], // [{ id, dia_semana }]
+  lidosPorDia: {}, // { dia_semana: quantidade }
+  totalAlunos: 0,
+});
+
+const criarMapaTurmasVazio = () =>
+  TURMAS.reduce((acc, turma) => {
+    acc[turma] = estadoTurmaVazio();
+    return acc;
+  }, {});
 
 // ---------- Datas ----------
 const paraISO = (d) => {
@@ -69,27 +87,28 @@ export default function LeituraSemanal() {
 
   const [semana, setSemana] = useState(segundaPadrao());
   const [mostrarPicker, setMostrarPicker] = useState(false);
-  const [classe, setClasse] = useState(null); // null = todas as classes
-  const [classes, setClasses] = useState([]);
-
-  const [leituraId, setLeituraId] = useState(null);
-  const [status, setStatus] = useState(null); // 'rascunho' | 'publicada' | null
-  const [tema, setTema] = useState('');
-  const [mensagem, setMensagem] = useState('');
-  const [dias, setDias] = useState(diasVazios());
-
-  const [leituraDias, setLeituraDias] = useState([]); // [{id, dia_semana}]
-  const [lidosPorDia, setLidosPorDia] = useState({}); // { dia_semana: quantidade }
-  const [totalAlunos, setTotalAlunos] = useState(0);
+  const [turmaAtiva, setTurmaAtiva] = useState(TURMAS[0]); // 'Adultos' | 'Jovens' | 'Juniores' | 'Crianças'
+  const [leiturasPorTurma, setLeiturasPorTurma] = useState(criarMapaTurmasVazio);
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+
+  const atual = leiturasPorTurma[turmaAtiva] || estadoTurmaVazio();
+  const { leituraId, status, tema, mensagem, dias, leituraDias, lidosPorDia, totalAlunos } = atual;
 
   const semanaISO = paraISO(semana);
   const sabado = new Date(semana);
   sabado.setDate(sabado.getDate() + 5);
   const domingo = new Date(semana);
   domingo.setDate(domingo.getDate() + 6);
+
+  const atualizarTurma = useCallback((turma, patchOuFn) => {
+    setLeiturasPorTurma((prev) => {
+      const base = prev[turma] || estadoTurmaVazio();
+      const proximo = typeof patchOuFn === 'function' ? patchOuFn(base) : { ...base, ...patchOuFn };
+      return { ...prev, [turma]: proximo };
+    });
+  }, []);
 
   const aoEscolherData = (event, data) => {
     if (Platform.OS === 'android') setMostrarPicker(false);
@@ -112,85 +131,92 @@ export default function LeituraSemanal() {
   const corInput = isDarkMode ? '#0F172A' : '#F8FAFC';
   const inputStyle = [styles.input, { color: corTexto, borderColor: corBorda, backgroundColor: corInput }];
 
-  // ---------- Classes disponíveis ----------
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from('licoes').select('classe');
-      const unicas = [...new Set((data || []).map((l) => l.classe).filter(Boolean))].sort();
-      setClasses(unicas);
-    })();
-  }, []);
-
-  // ---------- Carrega a leitura da semana + classe escolhidas ----------
+  // ---------- Carrega as leituras da semana para todas as turmas ----------
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      let q = supabase
+      const { data: leituras, error } = await supabase
         .from('leituras_semanais')
-        .select('id, tema, mensagem, status, leitura_dias(id, dia_semana, referencia, titulo)')
-        .eq('semana_inicio', semanaISO);
-      q = classe ? q.eq('classe', classe) : q.is('classe', null);
-
-      const { data, error } = await q.maybeSingle();
+        .select('id, classe, tema, mensagem, status, leitura_dias(id, dia_semana, referencia, titulo)')
+        .eq('semana_inicio', semanaISO)
+        .in('classe', TURMAS);
       if (error) throw error;
 
-      if (!data) {
-        setLeituraId(null);
-        setStatus(null);
-        setTema('');
-        setMensagem('');
-        setDias(diasVazios());
-        setLeituraDias([]);
-        setLidosPorDia({});
-      } else {
-        const novos = diasVazios();
-        (data.leitura_dias || []).forEach((d) => {
-          novos[d.dia_semana - 1] = { referencia: d.referencia, titulo: d.titulo };
-        });
-        setLeituraId(data.id);
-        setStatus(data.status);
-        setTema(data.tema || '');
-        setMensagem(data.mensagem || '');
-        setDias(novos);
-        setLeituraDias((data.leitura_dias || []).map((d) => ({ id: d.id, dia_semana: d.dia_semana })));
-
-        // Acompanhamento: quantos alunos leram cada dia
-        const ids = (data.leitura_dias || []).map((d) => d.id);
-        const contagem = {};
-        if (ids.length > 0) {
-          const { data: prog } = await supabase
-            .from('leitura_progresso')
-            .select('leitura_dia_id')
-            .in('leitura_dia_id', ids);
-          (data.leitura_dias || []).forEach((d) => {
-            contagem[d.dia_semana] = (prog || []).filter((p) => p.leitura_dia_id === d.id).length;
-          });
-        }
-        setLidosPorDia(contagem);
+      const todosDiasIds = (leituras || []).flatMap((l) => (l.leitura_dias || []).map((d) => d.id));
+      let progressoRows = [];
+      if (todosDiasIds.length > 0) {
+        const { data: prog, error: errProg } = await supabase
+          .from('leitura_progresso')
+          .select('leitura_dia_id')
+          .in('leitura_dia_id', todosDiasIds);
+        if (errProg) throw errProg;
+        progressoRows = prog || [];
       }
 
-      // Total de alunos (da classe, ou de todas)
-      let qa = supabase
+      const { data: alunosRows, error: errAlunos } = await supabase
         .from('users')
-        .select('id', { count: 'exact', head: true })
-        .eq('tipo_usuario', TIPO_ALUNO);
-      if (classe) qa = qa.eq('classe', classe);
-      const { count } = await qa;
-      setTotalAlunos(count || 0);
+        .select('classe')
+        .eq('tipo_usuario', TIPO_ALUNO)
+        .in('classe', TURMAS);
+      if (errAlunos) throw errAlunos;
+
+      const contagemAlunosPorTurma = TURMAS.reduce((acc, t) => ({ ...acc, [t]: 0 }), {});
+      (alunosRows || []).forEach((u) => {
+        if (u.classe && contagemAlunosPorTurma[u.classe] !== undefined) {
+          contagemAlunosPorTurma[u.classe] += 1;
+        }
+      });
+
+      const mapa = criarMapaTurmasVazio();
+      TURMAS.forEach((turma) => {
+        mapa[turma].totalAlunos = contagemAlunosPorTurma[turma] || 0;
+      });
+
+      (leituras || []).forEach((item) => {
+        const turma = item.classe;
+        if (!mapa[turma]) return;
+
+        const novosDias = diasVazios();
+        const contagemDias = {};
+        (item.leitura_dias || []).forEach((d) => {
+          novosDias[d.dia_semana - 1] = { referencia: d.referencia, titulo: d.titulo };
+          contagemDias[d.dia_semana] = progressoRows.filter((p) => p.leitura_dia_id === d.id).length;
+        });
+
+        mapa[turma] = {
+          leituraId: item.id,
+          status: item.status,
+          tema: item.tema || '',
+          mensagem: item.mensagem || '',
+          dias: novosDias,
+          leituraDias: (item.leitura_dias || []).map((d) => ({ id: d.id, dia_semana: d.dia_semana })),
+          lidosPorDia: contagemDias,
+          totalAlunos: contagemAlunosPorTurma[turma] || 0,
+        };
+      });
+
+      setLeiturasPorTurma(mapa);
     } catch (e) {
-      Alert.alert('Erro', 'Não foi possível carregar a leitura: ' + (e.message || e));
+      Alert.alert('Erro', 'Não foi possível carregar as leituras: ' + (e.message || e));
     } finally {
       setCarregando(false);
     }
-  }, [semanaISO, classe]);
+  }, [semanaISO]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
 
   // ---------- Edição ----------
+  const mudarCampoTurma = (campo, valor) => {
+    atualizarTurma(turmaAtiva, { [campo]: valor });
+  };
+
   const mudarDia = (indice, campo, valor) => {
-    setDias((atual) => atual.map((d, i) => (i === indice ? { ...d, [campo]: valor } : d)));
+    atualizarTurma(turmaAtiva, (prev) => ({
+      ...prev,
+      dias: prev.dias.map((d, i) => (i === indice ? { ...d, [campo]: valor } : d)),
+    }));
   };
 
   const mudarSemana = (delta) => {
@@ -201,24 +227,25 @@ export default function LeituraSemanal() {
 
   // ---------- Salvar / Publicar ----------
   const salvar = async (publicar) => {
-    // Valida: dia com só um dos campos preenchido é erro
     for (let i = 0; i < dias.length; i++) {
       const ref = dias[i].referencia.trim();
       const tit = dias[i].titulo.trim();
       if ((ref && !tit) || (!ref && tit)) {
-        Alert.alert('Atenção', `${DIAS[i]}: preencha a referência e o título, ou deixe os dois vazios.`);
+        Alert.alert(
+          'Atenção',
+          `${turmaAtiva} — ${DIAS[i]}: preencha a referência e o título, ou deixe os dois vazios.`
+        );
         return;
       }
     }
     const preenchidos = dias.filter((d) => d.referencia.trim() && d.titulo.trim());
     if (preenchidos.length === 0) {
-      Alert.alert('Atenção', 'Preencha pelo menos um dia da semana.');
+      Alert.alert('Atenção', `Preencha pelo menos um dia da semana para ${turmaAtiva}.`);
       return;
     }
 
     setSalvando(true);
     try {
-      // Publicando uma semana futura: libera sozinha na segunda às 00h
       const inicio = new Date(semana);
       inicio.setHours(0, 0, 0, 0);
       const agora = new Date();
@@ -226,7 +253,7 @@ export default function LeituraSemanal() {
       const publicarEm = agendada ? inicio.toISOString() : agora.toISOString();
 
       const payload = {
-        classe,
+        classe: turmaAtiva,
         tema: tema.trim() || null,
         semana_inicio: semanaISO,
         mensagem: mensagem.trim() || null,
@@ -248,7 +275,6 @@ export default function LeituraSemanal() {
         id = data.id;
       }
 
-      // Dias preenchidos: cria ou atualiza
       const linhas = dias
         .map((d, i) => ({
           leitura_id: id,
@@ -263,7 +289,6 @@ export default function LeituraSemanal() {
         .upsert(linhas, { onConflict: 'leitura_id,dia_semana' });
       if (errDias) throw errDias;
 
-      // Dias que ficaram vazios: remove
       const vazios = dias.map((d, i) => i + 1).filter((n) => !linhas.some((l) => l.dia_semana === n));
       if (vazios.length > 0) {
         const { error: errDel } = await supabase
@@ -278,9 +303,9 @@ export default function LeituraSemanal() {
         publicar ? 'Publicada 🎉' : 'Rascunho salvo',
         publicar
           ? agendada
-            ? `A leitura será liberada para os alunos na segunda-feira, ${formatarDM(semana)}.`
-            : 'A leitura já está disponível para os alunos.'
-          : 'Você pode continuar editando e publicar depois.'
+            ? `A leitura de ${turmaAtiva} será liberada na segunda-feira, ${formatarDM(semana)}.`
+            : `A leitura de ${turmaAtiva} já está disponível para os alunos.`
+          : `Rascunho de ${turmaAtiva} salvo. Você pode continuar editando e publicar depois.`
       );
       carregar();
     } catch (e) {
@@ -291,21 +316,26 @@ export default function LeituraSemanal() {
   };
 
   const despublicar = () => {
-    Alert.alert('Despublicar', 'Os alunos deixarão de ver esta leitura. Deseja continuar?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Despublicar',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase
-            .from('leituras_semanais')
-            .update({ status: 'rascunho' })
-            .eq('id', leituraId);
-          if (error) Alert.alert('Erro', error.message);
-          else carregar();
+    if (!leituraId) return;
+    Alert.alert(
+      'Despublicar',
+      `Os alunos de ${turmaAtiva} deixarão de ver esta leitura. Deseja continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Despublicar',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('leituras_semanais')
+              .update({ status: 'rascunho' })
+              .eq('id', leituraId);
+            if (error) Alert.alert('Erro', error.message);
+            else carregar();
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   // ---------- Tela ----------
@@ -330,7 +360,7 @@ export default function LeituraSemanal() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Seletor de semana */}
+          {/* Seletor de semana e turma */}
           <View style={[styles.card, { backgroundColor: corCard, borderColor: corBorda }]}>
             <View style={styles.semanaRow}>
               <TouchableOpacity onPress={() => mudarSemana(-1)} style={styles.setaBtn}>
@@ -358,7 +388,10 @@ export default function LeituraSemanal() {
                   <View
                     style={[
                       styles.badge,
-                      { backgroundColor: status === 'publicada' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)' },
+                      {
+                        backgroundColor:
+                          status === 'publicada' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)',
+                      },
                     ]}
                   >
                     <Text
@@ -404,29 +437,52 @@ export default function LeituraSemanal() {
                   onChange={aoEscolherData}
                 />
                 {Platform.OS === 'ios' && (
-                  <TouchableOpacity style={styles.btnConfirmarData} onPress={() => setMostrarPicker(false)}>
+                  <TouchableOpacity
+                    style={styles.btnConfirmarData}
+                    onPress={() => setMostrarPicker(false)}
+                  >
                     <Text style={styles.btnConfirmarDataTexto}>Confirmar data</Text>
                   </TouchableOpacity>
                 )}
               </View>
             )}
 
-            <Text style={[styles.rotulo, { color: corSub }]}>Para qual classe?</Text>
+            <Text style={[styles.rotulo, { color: corSub }]}>Turma</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {[null, ...classes].map((c) => {
-                const ativo = classe === c;
+              {TURMAS.map((t) => {
+                const ativo = turmaAtiva === t;
+                const stTurma = leiturasPorTurma[t]?.status;
                 return (
                   <TouchableOpacity
-                    key={c || 'todas'}
-                    onPress={() => setClasse(c)}
+                    key={t}
+                    onPress={() => setTurmaAtiva(t)}
                     style={[
                       styles.chip,
-                      { borderColor: ativo ? '#2563EB' : corBorda, backgroundColor: ativo ? '#2563EB' : corInput },
+                      {
+                        borderColor: ativo ? '#2563EB' : corBorda,
+                        backgroundColor: ativo ? '#2563EB' : corInput,
+                      },
                     ]}
                   >
-                    <Text style={{ color: ativo ? '#FFF' : corTexto, fontWeight: '600', fontSize: 13 }}>
-                      {c || 'Todas as classes'}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ color: ativo ? '#FFF' : corTexto, fontWeight: '600', fontSize: 13 }}>
+                        {t}
+                      </Text>
+                      {stTurma && (
+                        <View
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: 4,
+                            backgroundColor: ativo
+                              ? '#FFF'
+                              : stTurma === 'publicada'
+                                ? '#16A34A'
+                                : '#D97706',
+                          }}
+                        />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -437,13 +493,16 @@ export default function LeituraSemanal() {
             <ActivityIndicator size="large" color="#2563EB" style={{ marginVertical: 40 }} />
           ) : (
             <>
-              {/* Tema e mensagem */}
+              {/* Tema e mensagem da turma */}
               <View style={[styles.card, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <Text style={[styles.turmaDestaque, { color: '#2563EB' }]}>
+                  Leitura semanal — {turmaAtiva}
+                </Text>
                 <Text style={[styles.rotulo, { color: corSub }]}>Tema da semana</Text>
                 <TextInput
                   value={tema}
-                  onChangeText={setTema}
-                  placeholder="Ex.: A unidade da Igreja"
+                  onChangeText={(v) => mudarCampoTurma('tema', v)}
+                  placeholder={`Tema para ${turmaAtiva}`}
                   placeholderTextColor={corSub}
                   style={inputStyle}
                 />
@@ -452,8 +511,8 @@ export default function LeituraSemanal() {
                 </Text>
                 <TextInput
                   value={mensagem}
-                  onChangeText={setMensagem}
-                  placeholder="Um incentivo que aparece no topo da leitura"
+                  onChangeText={(v) => mudarCampoTurma('mensagem', v)}
+                  placeholder={`Incentivo para a turma ${turmaAtiva}`}
                   placeholderTextColor={corSub}
                   multiline
                   style={[...inputStyle, { minHeight: 70, textAlignVertical: 'top' }]}
@@ -466,7 +525,7 @@ export default function LeituraSemanal() {
                 const existe = leituraDias.some((d) => d.dia_semana === i + 1);
                 return (
                   <View
-                    key={nome}
+                    key={`${turmaAtiva}-${nome}`}
                     style={[styles.card, { backgroundColor: corCard, borderColor: corBorda }]}
                   >
                     <View style={styles.diaTopo}>
@@ -509,7 +568,9 @@ export default function LeituraSemanal() {
                   <>
                     <Ionicons name="paper-plane-outline" size={18} color="#FFF" />
                     <Text style={styles.btnPrimarioTexto}>
-                      {status === 'publicada' ? 'Atualizar leitura publicada' : 'Publicar leitura'}
+                      {status === 'publicada'
+                        ? `Atualizar leitura (${turmaAtiva})`
+                        : `Publicar leitura (${turmaAtiva})`}
                     </Text>
                   </>
                 )}
@@ -522,13 +583,17 @@ export default function LeituraSemanal() {
                   disabled={salvando}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.btnSecundarioTexto, { color: corTexto }]}>Salvar rascunho</Text>
+                  <Text style={[styles.btnSecundarioTexto, { color: corTexto }]}>
+                    Salvar rascunho ({turmaAtiva})
+                  </Text>
                 </TouchableOpacity>
               )}
 
               {status === 'publicada' && (
                 <TouchableOpacity onPress={despublicar} style={{ alignItems: 'center', padding: 10 }}>
-                  <Text style={{ color: '#EF4444', fontWeight: '600' }}>Despublicar</Text>
+                  <Text style={{ color: '#EF4444', fontWeight: '600' }}>
+                    Despublicar ({turmaAtiva})
+                  </Text>
                 </TouchableOpacity>
               )}
             </>
@@ -583,6 +648,7 @@ const styles = StyleSheet.create({
   },
   btnConfirmarDataTexto: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, marginTop: 4 },
+  turmaDestaque: { fontSize: 13, fontWeight: '700', marginBottom: 10 },
   rotulo: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   input: {
