@@ -21,8 +21,18 @@
       "package": "com.felps_452.dominicalapp"
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Dominical App",
+      "shortName": "Dominical",
+      "description": "Sistema de gestão acadêmica e controle de frequência",
+      "lang": "pt-BR",
+      "themeColor": "#208AEF",
+      "backgroundColor": "#E6F4FE",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/"
     },
     "plugins": [
       "expo-router",

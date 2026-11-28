@@ -8,6 +8,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,20 +21,51 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 
-import { autenticarUsuario } from '../services/Authservice'; // Certifique-se de que a função existe no Authservice.js
+import { autenticarUsuario } from '../services/Authservice';
 
 const ROTA_CADASTRO = '/cadastro';
 
-// Chaves usadas no armazenamento seguro do aparelho
+// Chaves usadas no armazenamento
 const CHAVE_LEMBRAR = 'lembrar_de_mim';
 const CHAVE_EMAIL = 'email_salvo';
 const CHAVE_SENHA = 'senha_salva';
+
+// Adaptador multiplataforma (Web usa localStorage, Mobile usa SecureStore)
+const storage = {
+  async getItem(key) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+      return null;
+    }
+    return await SecureStore.getItemAsync(key);
+  },
+  async setItem(key, value) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  },
+  async deleteItem(key) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
+};
 
 // Mapeamento exato de rotas com base no tipo de usuário armazenado no Supabase
 const ROTA_POR_PERFIL = {
   aluno: '/screens/aluno',
   professor: '/screens/professor',
-  superintendente: '/screens/superintendente', // <-- Atualizado aqui
+  superintendente: '/screens/superintendente',
 };
 
 const SUFIXOS_PAISES =
@@ -110,7 +142,7 @@ export default function Login() {
 
   const carregarCredenciais = async () => {
     try {
-      const ativo = await SecureStore.getItemAsync(CHAVE_LEMBRAR);
+      const ativo = await storage.getItem(CHAVE_LEMBRAR);
       if (ativo !== 'true') return;
 
       setLembrar(true);
@@ -118,8 +150,8 @@ export default function Login() {
       // Se acabou de criar a conta, mantém o e-mail vindo do cadastro
       if (cadastro === 'ok') return;
 
-      const emailSalvo = await SecureStore.getItemAsync(CHAVE_EMAIL);
-      const senhaSalva = await SecureStore.getItemAsync(CHAVE_SENHA);
+      const emailSalvo = await storage.getItem(CHAVE_EMAIL);
+      const senhaSalva = await storage.getItem(CHAVE_SENHA);
       if (emailSalvo) setEmail(emailSalvo);
       if (senhaSalva) setSenha(senhaSalva);
     } catch (err) {
@@ -131,13 +163,13 @@ export default function Login() {
   const gravarCredenciais = async (emailLogin) => {
     try {
       if (lembrar) {
-        await SecureStore.setItemAsync(CHAVE_LEMBRAR, 'true');
-        await SecureStore.setItemAsync(CHAVE_EMAIL, emailLogin);
-        await SecureStore.setItemAsync(CHAVE_SENHA, senha);
+        await storage.setItem(CHAVE_LEMBRAR, 'true');
+        await storage.setItem(CHAVE_EMAIL, emailLogin);
+        await storage.setItem(CHAVE_SENHA, senha);
       } else {
-        await SecureStore.deleteItemAsync(CHAVE_LEMBRAR);
-        await SecureStore.deleteItemAsync(CHAVE_EMAIL);
-        await SecureStore.deleteItemAsync(CHAVE_SENHA);
+        await storage.deleteItem(CHAVE_LEMBRAR);
+        await storage.deleteItem(CHAVE_EMAIL);
+        await storage.deleteItem(CHAVE_SENHA);
       }
     } catch (err) {
       console.log('Erro ao gravar credenciais:', err?.message || err);
@@ -221,7 +253,7 @@ export default function Login() {
         return;
       }
 
-      // Redireciona para o painel correspondente (/aluno ou /professor)
+      // Redireciona para o painel correspondente
       router.replace({ pathname: rota, params: { userName: usuario.nome } });
     } catch (e) {
       console.warn('Erro inesperado no login:', e?.message || e);
@@ -251,7 +283,7 @@ export default function Login() {
       <SafeAreaView style={styles.flex}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior="padding"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.headerTheme}>
             <TouchableOpacity

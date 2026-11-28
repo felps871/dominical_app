@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { ThemeProvider } from '../context/ThemeContext';
 import { supabase } from '../supabase';
@@ -6,6 +7,25 @@ import * as Linking from 'expo-linking';
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // Registra o Service Worker para o PWA funcionar na Web
+  useEffect(() => {
+    if (Platform.OS === 'web' && 'serviceWorker' in navigator) {
+      const registerSW = () => {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => console.log('SW registrado:', reg.scope))
+          .catch((err) => console.log('Erro no SW:', err));
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+        return () => window.removeEventListener('load', registerSW);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     Linking.getInitialURL().then(async (url) => {
