@@ -5,11 +5,12 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StatusBar,
-  Modal,
   ActivityIndicator,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -127,17 +128,25 @@ export default function Home() {
     }
   };
 
-  const sair = () => {
+  const sair = async () => {
+    try {
+      fecharPerfil();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.log('Erro ao sair:', err);
+    }
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = '/';
+      return;
+    }
+
     Alert.alert('Sair', 'Deseja realmente sair da conta?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sair',
         style: 'destructive',
-        onPress: async () => {
-          await supabase.auth.signOut();
-          fecharPerfil();
-          router.replace('/');
-        },
+        onPress: () => router.replace('/'),
       },
     ]);
   };
@@ -286,151 +295,157 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      {/* ============ TELA DE PERFIL (MODAL) ============ */}
-      <Modal
-        visible={perfilVisivel}
-        animationType="slide"
-        onRequestClose={fecharPerfil}
-        statusBarTranslucent
-      >
-        <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
-          <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
-            <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
-              <Ionicons name="arrow-back" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <Text style={styles.perfilTopTitle}>Meu perfil</Text>
-            <View style={{ width: 40 }} />
-          </View>
+      {/* ============ TELA DE PERFIL (OVERLAY) ============ */}
+      {perfilVisivel && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            styles.perfilContainer,
+            { backgroundColor: corFundo, zIndex: 999 },
+          ]}
+        >
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#020617' : '#0F172A' }]}>
+              <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
+                <Ionicons name="arrow-back" size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={styles.perfilTopTitle}>Meu perfil</Text>
+              <View style={{ width: 40 }} />
+            </View>
 
-          <ScrollView
-            contentContainerStyle={styles.perfilContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Cartão principal: avatar, nome e classe */}
-            <View
-              style={[
-                styles.perfilCard,
-                {
-                  backgroundColor: corCard,
-                  borderColor: corBorda,
-                },
-              ]}
+            <ScrollView
+              contentContainerStyle={styles.perfilContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <View style={styles.perfilCardTopo}>
-                <View style={styles.perfilAvatar}>
-                  <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
+              {/* Cartão principal: avatar, nome e classe */}
+              <View
+                style={[
+                  styles.perfilCard,
+                  {
+                    backgroundColor: corCard,
+                    borderColor: corBorda,
+                  },
+                ]}
+              >
+                <View style={styles.perfilCardTopo}>
+                  <View style={styles.perfilAvatar}>
+                    <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
+                  </View>
+
+                  <View style={{ flex: 1, marginLeft: 16 }}>
+                    <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
+                      {nomeUsuario}
+                    </Text>
+                    <View style={styles.badgeClasse}>
+                      <Ionicons name="school-outline" size={14} color="#2563EB" />
+                      <Text style={styles.badgeClasseTexto}>{classeUsuario}</Text>
+                    </View>
+                  </View>
                 </View>
 
-                <View style={{ flex: 1, marginLeft: 16 }}>
-                  <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
-                    {nomeUsuario}
-                  </Text>
-                  <View style={styles.badgeClasse}>
-                    <Ionicons name="school-outline" size={14} color="#2563EB" />
-                    <Text style={styles.badgeClasseTexto}>{classeUsuario}</Text>
+                {loadingPerfil && (
+                  <ActivityIndicator size="small" color="#2563EB" style={{ marginTop: 14 }} />
+                )}
+              </View>
+
+              {/* CONTATO */}
+              <Text style={[styles.perfilSecao, { color: corSub }]}>CONTATO</Text>
+              <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <View style={styles.linhaInfo}>
+                  <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                    <Ionicons name="mail-outline" size={20} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoLabel, { color: corSub }]}>E-mail</Text>
+                    <Text style={[styles.infoValor, { color: corTexto }]} numberOfLines={1}>
+                      {perfil.email || '—'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+
+                <View style={styles.linhaInfo}>
+                  <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                    <Ionicons name="shield-outline" size={20} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoLabel, { color: corSub }]}>Função</Text>
+                    <Text style={[styles.infoValor, { color: corTexto }]}>
+                      {formatarTipo(perfil.tipo)}
+                    </Text>
                   </View>
                 </View>
               </View>
 
-              {loadingPerfil && (
-                <ActivityIndicator size="small" color="#2563EB" style={{ marginTop: 14 }} />
-              )}
-            </View>
-
-            {/* CONTATO */}
-            <Text style={[styles.perfilSecao, { color: corSub }]}>CONTATO</Text>
-            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <View style={styles.linhaInfo}>
-                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="mail-outline" size={20} color="#2563EB" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: corSub }]}>E-mail</Text>
-                  <Text style={[styles.infoValor, { color: corTexto }]} numberOfLines={1}>
-                    {perfil.email || '—'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.divisor, { backgroundColor: corBorda }]} />
-
-              <View style={styles.linhaInfo}>
-                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="shield-outline" size={20} color="#2563EB" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: corSub }]}>Função</Text>
-                  <Text style={[styles.infoValor, { color: corTexto }]}>
-                    {formatarTipo(perfil.tipo)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* CONTA */}
-            <Text style={[styles.perfilSecao, { color: corSub }]}>SEGURANÇA E CONTA</Text>
-            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
-                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="key-outline" size={20} color="#2563EB" />
-                </View>
-                <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
-                <Ionicons
-                  name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
-                  size={18}
-                  color={corSub}
-                />
-              </TouchableOpacity>
-
-              {senhaVisivel && (
-                <View style={styles.formSenha}>
-                  <TextInput
-                    value={novaSenha}
-                    onChangeText={setNovaSenha}
-                    placeholder="Nova senha"
-                    placeholderTextColor={corSub}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+              {/* CONTA */}
+              <Text style={[styles.perfilSecao, { color: corSub }]}>SEGURANÇA E CONTA</Text>
+              <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
+                  <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                    <Ionicons name="key-outline" size={20} color="#2563EB" />
+                  </View>
+                  <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
+                  <Ionicons
+                    name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
+                    size={18}
+                    color={corSub}
                   />
-                  <TextInput
-                    value={confirmarSenha}
-                    onChangeText={setConfirmarSenha}
-                    placeholder="Confirmar nova senha"
-                    placeholderTextColor={corSub}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
-                  />
-                  <TouchableOpacity
-                    style={styles.btnSalvarSenha}
-                    onPress={salvarNovaSenha}
-                    disabled={salvandoSenha}
-                    activeOpacity={0.8}
-                  >
-                    {salvandoSenha ? (
-                      <ActivityIndicator color="#FFF" size="small" />
-                    ) : (
-                      <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
+                </TouchableOpacity>
 
-              <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+                {senhaVisivel && (
+                  <View style={styles.formSenha}>
+                    <TextInput
+                      value={novaSenha}
+                      onChangeText={setNovaSenha}
+                      placeholder="Nova senha"
+                      placeholderTextColor={corSub}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+                    />
+                    <TextInput
+                      value={confirmarSenha}
+                      onChangeText={setConfirmarSenha}
+                      placeholder="Confirmar nova senha"
+                      placeholderTextColor={corSub}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+                    />
+                    <TouchableOpacity
+                      style={styles.btnSalvarSenha}
+                      onPress={salvarNovaSenha}
+                      disabled={salvandoSenha}
+                      activeOpacity={0.8}
+                    >
+                      {salvandoSenha ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
 
-              <TouchableOpacity style={styles.linhaInfo} onPress={sair} activeOpacity={0.7}>
-                <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                </View>
-                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
-                <Ionicons name="chevron-forward" size={18} color={corSub} />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+                <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+
+                <Pressable
+                  onPress={sair}
+                  style={({ pressed }) => [styles.linhaInfo, pressed && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                  </View>
+                  <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
+                  <Ionicons name="chevron-forward" size={18} color={corSub} />
+                </Pressable>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

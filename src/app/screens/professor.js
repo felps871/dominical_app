@@ -4,13 +4,14 @@ import {
   Text,
   View,
   TouchableOpacity,
+  Pressable,
   StatusBar,
-  Modal,
   ScrollView,
   TextInput,
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,7 +80,8 @@ export default function InicioScreen() {
     try {
       setCarregandoFreq(true);
       setLoadingLicao(true);
-      
+      setLicaoProxima(null);
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -92,16 +94,15 @@ export default function InicioScreen() {
         .maybeSingle();
 
       const nomeAtual = perfil?.nome || user.user_metadata?.nome || 'Professor';
-      const classeAtual = perfil?.classe || '';
-      
+      const classeAtual = (perfil?.classe || '').trim();
+
       setNomeUsuario(nomeAtual);
       setClasseProfessor(classeAtual);
 
       await Promise.all([
         carregarFrequenciaIndividual(user.id, nomeAtual),
-        fetchProximaLicao(classeAtual)
+        fetchProximaLicao(classeAtual),
       ]);
-
     } catch (error) {
       console.log('Erro ao carregar dados:', error.message);
       setErroFreq(error.message);
@@ -163,11 +164,11 @@ export default function InicioScreen() {
       });
 
       const totaisMes = presencasMes.length;
-      const presentesMes = presencasMes.filter(p => p.presente === true).length;
+      const presentesMes = presencasMes.filter((p) => p.presente === true).length;
       const pctMes = totaisMes > 0 ? Math.round((presentesMes / totaisMes) * 100) : 0;
 
       const totaisAno = presencasAno.length;
-      const presentesAno = presencasAno.filter(p => p.presente === true).length;
+      const presentesAno = presencasAno.filter((p) => p.presente === true).length;
       const pctAno = totaisAno > 0 ? Math.round((presentesAno / totaisAno) * 100) : 0;
 
       setFrequencia({
@@ -178,49 +179,47 @@ export default function InicioScreen() {
         aulasPresentesAno: presentesAno,
         aulasTotaisAno: totaisAno,
       });
-
     } catch (err) {
       console.error('Erro ao processar frequência:', err);
     }
   };
 
-  const fetchProximaLicao = async (classeAluno) => {
+  const fetchProximaLicao = async (classeProf) => {
     try {
+      const classeLimpa = (classeProf || '').trim();
+      if (!classeLimpa) {
+        setLicaoProxima(null);
+        return;
+      }
+
       const hojeStr = new Date().toISOString().split('T')[0];
 
-      let query = supabase
+      const { data, error } = await supabase
         .from('licoes')
         .select('*')
+        .ilike('classe', classeLimpa)
         .gte('data', hojeStr)
         .order('data', { ascending: true })
         .limit(1);
 
-      if (classeAluno) {
-        query = query.eq('classe', classeAluno);
-      }
-
-      const { data, error } = await query;
-
       if (error) {
         console.error('Erro ao buscar próxima lição:', error.message);
-      } else if (data && data.length > 0) {
-        setLicaoProxima(data[0]);
-      } else {
-        let fallbackQuery = supabase
-          .from('licoes')
-          .select('*')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        if (classeAluno) {
-          fallbackQuery = fallbackQuery.eq('classe', classeAluno);
-        }
-
-        const { data: fallbackData } = await fallbackQuery;
-        if (fallbackData && fallbackData.length > 0) {
-          setLicaoProxima(fallbackData[0]);
-        }
+        return;
       }
+
+      if (data && data.length > 0) {
+        setLicaoProxima(data[0]);
+        return;
+      }
+
+      const { data: fallbackData } = await supabase
+        .from('licoes')
+        .select('*')
+        .ilike('classe', classeLimpa)
+        .order('id', { ascending: false })
+        .limit(1);
+
+      setLicaoProxima(fallbackData && fallbackData.length > 0 ? fallbackData[0] : null);
     } catch (err) {
       console.error('Erro ao buscar lição:', err);
     }
@@ -230,13 +229,15 @@ export default function InicioScreen() {
     const linkPadrao = 'https://exemplo.com/sua-revista-digital';
     const urlAlvo = urlPersonalizada || linkPadrao;
 
-    Linking.canOpenURL(urlAlvo).then((supported) => {
-      if (supported) {
-        Linking.openURL(urlAlvo);
-      } else {
-        Alert.alert('Erro', 'Não foi possível abrir o link da revista.');
-      }
-    }).catch((err) => console.error('Erro ao abrir link:', err));
+    Linking.canOpenURL(urlAlvo)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(urlAlvo);
+        } else {
+          Alert.alert('Erro', 'Não foi possível abrir o link da revista.');
+        }
+      })
+      .catch((err) => console.error('Erro ao abrir link:', err));
   };
 
   const entrarNaChamada = () => {
@@ -277,17 +278,25 @@ export default function InicioScreen() {
     }
   };
 
-  const sair = () => {
+  const sair = async () => {
+    try {
+      fecharPerfil();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.log('Erro ao sair:', err);
+    }
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = '/';
+      return;
+    }
+
     Alert.alert('Sair', 'Deseja realmente sair da conta?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sair',
         style: 'destructive',
-        onPress: async () => {
-          await supabase.auth.signOut();
-          fecharPerfil();
-          router.replace('/');
-        },
+        onPress: () => router.replace('/'),
       },
     ]);
   };
@@ -527,7 +536,7 @@ export default function InicioScreen() {
                 </View>
 
                 <Text style={[styles.cardTitulo, { color: corTexto }]}>{licaoProxima.titulo}</Text>
-                
+
                 <View style={styles.teacherInfoRow}>
                   <Ionicons name="person-outline" size={14} color={corSubtexto} />
                   <Text style={[styles.cardSub, { color: corSubtexto }]}>
@@ -536,8 +545,8 @@ export default function InicioScreen() {
                 </View>
 
                 {licaoProxima.link_revista && (
-                  <TouchableOpacity 
-                    style={styles.linkButtonLicao} 
+                  <TouchableOpacity
+                    style={styles.linkButtonLicao}
                     onPress={() => abrirRevistaDigital(licaoProxima.link_revista)}
                     activeOpacity={0.8}
                   >
@@ -551,130 +560,136 @@ export default function InicioScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* ============ MODAL DE PERFIL ============ */}
-      <Modal
-        visible={perfilVisivel}
-        animationType="slide"
-        onRequestClose={fecharPerfil}
-        statusBarTranslucent
-      >
-        <SafeAreaView style={[styles.perfilContainer, { backgroundColor: corFundo }]}>
-          <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF', borderBottomColor: corBorda, borderBottomWidth: 1 }]}>
-            <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
-              <Ionicons name="close" size={24} color={corTexto} />
-            </TouchableOpacity>
-            <Text style={[styles.perfilTopTitle, { color: corTexto }]}>Meu Perfil</Text>
-            <View style={{ width: 40 }} />
-          </View>
+      {/* ============ MEU PERFIL (OVERLAY) ============ */}
+      {perfilVisivel && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            styles.perfilContainer,
+            { backgroundColor: corFundo, zIndex: 999 },
+          ]}
+        >
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={[styles.perfilTopBar, { backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF', borderBottomColor: corBorda, borderBottomWidth: 1 }]}>
+              <TouchableOpacity onPress={fecharPerfil} style={styles.perfilBackBtn}>
+                <Ionicons name="close" size={24} color={corTexto} />
+              </TouchableOpacity>
+              <Text style={[styles.perfilTopTitle, { color: corTexto }]}>Meu Perfil</Text>
+              <View style={{ width: 40 }} />
+            </View>
 
-          <ScrollView
-            contentContainerStyle={styles.perfilContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View
-              style={[
-                styles.perfilCard,
-                {
-                  backgroundColor: corCard,
-                  borderColor: corBorda,
-                },
-              ]}
+            <ScrollView
+              contentContainerStyle={styles.perfilContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <View style={styles.perfilCardTopo}>
-                <View style={styles.perfilAvatar}>
-                  <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
-                </View>
+              <View
+                style={[
+                  styles.perfilCard,
+                  {
+                    backgroundColor: corCard,
+                    borderColor: corBorda,
+                  },
+                ]}
+              >
+                <View style={styles.perfilCardTopo}>
+                  <View style={styles.perfilAvatar}>
+                    <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
+                  </View>
 
-                <View style={{ flex: 1, marginLeft: 16 }}>
-                  <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
-                    {nomeUsuario}
-                  </Text>
-                  <View style={styles.badgePerfilClasse}>
-                    <Ionicons name="school-outline" size={14} color="#2563EB" />
-                    <Text style={styles.badgePerfilClasseTexto}>{classeProfessor || 'Professor'}</Text>
+                  <View style={{ flex: 1, marginLeft: 16 }}>
+                    <Text style={[styles.perfilNome, { color: corTexto }]} numberOfLines={2}>
+                      {nomeUsuario}
+                    </Text>
+                    <View style={styles.badgePerfilClasse}>
+                      <Ionicons name="school-outline" size={14} color="#2563EB" />
+                      <Text style={styles.badgePerfilClasseTexto}>{classeProfessor || 'Professor'}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
 
-            <Text style={[styles.perfilSecao, { color: corSubtexto }]}>CONTATO</Text>
-            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <View style={styles.linhaInfo}>
-                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="mail-outline" size={20} color="#2563EB" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: corSubtexto }]}>E-mail</Text>
-                  <Text style={[styles.infoValor, { color: corTexto }]} numberOfLines={1}>
-                    {emailUsuario || '—'}
-                  </Text>
+              <Text style={[styles.perfilSecao, { color: corSubtexto }]}>CONTATO</Text>
+              <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <View style={styles.linhaInfo}>
+                  <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                    <Ionicons name="mail-outline" size={20} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoLabel, { color: corSubtexto }]}>E-mail</Text>
+                    <Text style={[styles.infoValor, { color: corTexto }]} numberOfLines={1}>
+                      {emailUsuario || '—'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <Text style={[styles.perfilSecao, { color: corSubtexto }]}>SEGURANÇA E CONTA</Text>
-            <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
-              <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
-                <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
-                  <Ionicons name="key-outline" size={20} color="#2563EB" />
-                </View>
-                <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
-                <Ionicons
-                  name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
-                  size={18}
-                  color={corSubtexto}
-                />
-              </TouchableOpacity>
-
-              {senhaVisivel && (
-                <View style={styles.formSenha}>
-                  <TextInput
-                    value={novaSenha}
-                    onChangeText={setNovaSenha}
-                    placeholder="Nova senha"
-                    placeholderTextColor={corSubtexto}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+              <Text style={[styles.perfilSecao, { color: corSubtexto }]}>SEGURANÇA E CONTA</Text>
+              <View style={[styles.perfilBox, { backgroundColor: corCard, borderColor: corBorda }]}>
+                <TouchableOpacity style={styles.linhaInfo} onPress={alterarSenha} activeOpacity={0.7}>
+                  <View style={[styles.iconeBox, { backgroundColor: corIconeBox }]}>
+                    <Ionicons name="key-outline" size={20} color="#2563EB" />
+                  </View>
+                  <Text style={[styles.infoValor, { color: corTexto, flex: 1 }]}>Alterar senha</Text>
+                  <Ionicons
+                    name={senhaVisivel ? 'chevron-down' : 'chevron-forward'}
+                    size={18}
+                    color={corSubtexto}
                   />
-                  <TextInput
-                    value={confirmarSenha}
-                    onChangeText={setConfirmarSenha}
-                    placeholder="Confirmar nova senha"
-                    placeholderTextColor={corSubtexto}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
-                  />
-                  <TouchableOpacity
-                    style={styles.btnSalvarSenha}
-                    onPress={salvarNovaSenha}
-                    disabled={salvandoSenha}
-                    activeOpacity={0.8}
-                  >
-                    {salvandoSenha ? (
-                      <ActivityIndicator color="#FFF" size="small" />
-                    ) : (
-                      <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
+                </TouchableOpacity>
 
-              <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+                {senhaVisivel && (
+                  <View style={styles.formSenha}>
+                    <TextInput
+                      value={novaSenha}
+                      onChangeText={setNovaSenha}
+                      placeholder="Nova senha"
+                      placeholderTextColor={corSubtexto}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+                    />
+                    <TextInput
+                      value={confirmarSenha}
+                      onChangeText={setConfirmarSenha}
+                      placeholder="Confirmar nova senha"
+                      placeholderTextColor={corSubtexto}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      style={[styles.inputSenha, { color: corTexto, borderColor: corBorda, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
+                    />
+                    <TouchableOpacity
+                      style={styles.btnSalvarSenha}
+                      onPress={salvarNovaSenha}
+                      disabled={salvandoSenha}
+                      activeOpacity={0.8}
+                    >
+                      {salvandoSenha ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.btnSalvarSenhaTexto}>Atualizar Senha</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
 
-              <TouchableOpacity style={styles.linhaInfo} onPress={sair} activeOpacity={0.7}>
-                <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                </View>
-                <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
-                <Ionicons name="chevron-forward" size={18} color={corSubtexto} />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+                <View style={[styles.divisor, { backgroundColor: corBorda }]} />
+
+                <Pressable
+                  onPress={sair}
+                  style={({ pressed }) => [styles.linhaInfo, pressed && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.iconeBox, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                  </View>
+                  <Text style={[styles.infoValor, { color: '#EF4444', flex: 1 }]}>Sair da conta</Text>
+                  <Ionicons name="chevron-forward" size={18} color={corSubtexto} />
+                </Pressable>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      )}
     </LinearGradient>
   );
 }
@@ -869,13 +884,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  cardData: { 
-    fontSize: 12, 
-    fontWeight: '600' 
+  cardData: {
+    fontSize: 12,
+    fontWeight: '600',
   },
-  cardTitulo: { 
-    fontSize: 16, 
-    fontWeight: '700', 
+  cardTitulo: {
+    fontSize: 16,
+    fontWeight: '700',
     marginBottom: 6,
     letterSpacing: -0.2,
   },
@@ -885,8 +900,8 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
-  cardSub: { 
-    fontSize: 13 
+  cardSub: {
+    fontSize: 13,
   },
   linkButtonLicao: {
     flexDirection: 'row',
@@ -995,8 +1010,8 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     opacity: 0.6,
   },
-  perfilContainer: { 
-    flex: 1 
+  perfilContainer: {
+    flex: 1,
   },
   perfilTopBar: {
     flexDirection: 'row',
@@ -1005,20 +1020,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  perfilBackBtn: { 
-    width: 40, 
-    height: 40, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  perfilBackBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  perfilTopTitle: { 
-    fontSize: 17, 
-    fontWeight: '700' 
+  perfilTopTitle: {
+    fontSize: 17,
+    fontWeight: '700',
   },
-  perfilContent: { 
-    padding: 20, 
+  perfilContent: {
+    padding: 20,
     gap: 16,
-    paddingBottom: 40 
+    paddingBottom: 40,
   },
   perfilCard: {
     borderRadius: 16,
@@ -1030,9 +1045,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  perfilCardTopo: { 
-    flexDirection: 'row', 
-    alignItems: 'center' 
+  perfilCardTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   perfilAvatar: {
     width: 64,
@@ -1046,13 +1061,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
   },
-  perfilAvatarTexto: { 
-    color: '#FFF', 
-    fontSize: 26, 
-    fontWeight: 'bold' 
+  perfilAvatarTexto: {
+    color: '#FFF',
+    fontSize: 26,
+    fontWeight: 'bold',
   },
-  perfilNome: { 
-    fontSize: 18, 
+  perfilNome: {
+    fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
@@ -1067,10 +1082,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 6,
   },
-  badgePerfilClasseTexto: { 
-    color: '#2563EB', 
-    fontWeight: '600', 
-    fontSize: 12 
+  badgePerfilClasseTexto: {
+    color: '#2563EB',
+    fontWeight: '600',
+    fontSize: 12,
   },
   perfilSecao: {
     fontSize: 11,
@@ -1104,19 +1119,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  infoLabel: { 
+  infoLabel: {
     fontSize: 11,
-    fontWeight: '500'
+    fontWeight: '500',
   },
-  infoValor: { 
-    fontSize: 15, 
-    fontWeight: '600', 
-    marginTop: 1 
+  infoValor: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 1,
   },
-  formSenha: { 
-    paddingHorizontal: 16, 
-    paddingBottom: 16, 
-    gap: 12 
+  divisor: {
+    height: 1,
+  },
+  formSenha: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
   },
   inputSenha: {
     borderWidth: 1,
@@ -1135,9 +1153,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  btnSalvarSenhaTexto: { 
-    color: '#FFF', 
-    fontWeight: '700', 
-    fontSize: 14 
+  btnSalvarSenhaTexto: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });
